@@ -1,0 +1,51 @@
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+
+export interface UserInfo {
+  token: string
+  username: string
+  nickname: string
+  role: string
+  avatar?: string
+}
+
+export const useAuthStore = defineStore('auth', () => {
+  const user = ref<UserInfo | null>(null)
+  const isLoggedIn = computed(() => !!user.value)
+  const isAdmin = computed(() => user.value?.role === 'ADMIN' || user.value?.role === 'SUPER_ADMIN')
+  const isSuperAdmin = computed(() => user.value?.role === 'SUPER_ADMIN')
+  const roleLabel = computed(() => {
+    const roleMap: Record<string, string> = {
+      'SUPER_ADMIN': '超级管理员',
+      'ADMIN': '管理员',
+      'USER': '普通用户'
+    }
+    return roleMap[user.value?.role || ''] || '普通用户'
+  })
+
+  const init = () => {
+    const saved = localStorage.getItem('user')
+    if (saved) {
+      try {
+        user.value = JSON.parse(saved)
+      } catch {
+        localStorage.removeItem('user')
+        localStorage.removeItem('token')
+      }
+    }
+  }
+
+  const setUser = (data: UserInfo) => {
+    user.value = data
+    localStorage.setItem('user', JSON.stringify(data))
+    localStorage.setItem('token', data.token)
+  }
+
+  const logout = () => {
+    user.value = null
+    localStorage.removeItem('user')
+    localStorage.removeItem('token')
+  }
+
+  return { user, isLoggedIn, isAdmin, isSuperAdmin, roleLabel, init, setUser, logout }
+})

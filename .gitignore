@@ -1,0 +1,28 @@
+# Dependencies
+frontend/node_modules/
+
+# Build output
+frontend/dist/
+backend/target/
+
+# Logs
+backend/logs/
+*.log
+
+# Local config and credentials
+.env
+.env.*
+backend/cloudflare/*.json
+backend/cloudflare/*.pem
+backend/cloudflare/cert.*
+backend/cloudflare/credentials*
+backend/cloudflare/config.yml
+
+# IDE and OS files
+.idea/
+.vscode/
+.claude/
+.trae/
+*.iml
+.DS_Store
+Thumbs.db

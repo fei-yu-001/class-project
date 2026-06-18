@@ -1,0 +1,32 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: validate
+
+logging:
+  level:
+    root: WARN
+    com.salary: INFO
+
+app:
+  security:
+    registration-enabled: ${REGISTRATION_ENABLED:false}
+  cors:
+    # 生产环境必须配置明确域名，逗号分隔
+    # 例如: https://salary.example.com,https://www.example.com
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://salary.feiyu.rest}
+  rate-limit:
+    enabled: true
+    api-capacity: 60
+    login-capacity: 5
+
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/plain,text/css,application/javascript
+

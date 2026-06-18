@@ -1,0 +1,13 @@
+# 开发环境配置
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    password: ${DB_PASSWORD:zzf050731}
+
+logging:
+  level:
+    com.salary: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
