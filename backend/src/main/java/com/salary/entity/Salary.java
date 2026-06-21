@@ -46,11 +46,17 @@ public class Salary {
     @Column(name = "overtime_pay", nullable = false, precision = 10, scale = 2)
     private BigDecimal overtimePay;
 
+    @Column(name = "extra_bonus", nullable = false, precision = 10, scale = 2)
+    private BigDecimal extraBonus;
+
     @Column(name = "leave_deduction", nullable = false, precision = 10, scale = 2)
     private BigDecimal leaveDeduction;
 
     @Column(name = "attendance_deduction", nullable = false, precision = 10, scale = 2)
     private BigDecimal attendanceDeduction;
+
+    @Column(name = "extra_deduction", nullable = false, precision = 10, scale = 2)
+    private BigDecimal extraDeduction;
 
     @Column(name = "tax_deduction", nullable = false, precision = 10, scale = 2)
     private BigDecimal taxDeduction;
@@ -85,8 +91,10 @@ public class Salary {
         if (performanceBonus == null) performanceBonus = BigDecimal.ZERO;
         if (fullAttendanceBonus == null) fullAttendanceBonus = BigDecimal.ZERO;
         if (overtimePay == null) overtimePay = BigDecimal.ZERO;
+        if (extraBonus == null) extraBonus = BigDecimal.ZERO;
         if (leaveDeduction == null) leaveDeduction = BigDecimal.ZERO;
         if (attendanceDeduction == null) attendanceDeduction = BigDecimal.ZERO;
+        if (extraDeduction == null) extraDeduction = BigDecimal.ZERO;
         if (taxDeduction == null) taxDeduction = BigDecimal.ZERO;
         if (insuranceDeduction == null) insuranceDeduction = BigDecimal.ZERO;
         if (status == null || status.isBlank()) status = "GENERATED";

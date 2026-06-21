@@ -20,19 +20,19 @@ public class EmployeeController {
     private final EmployeeService employeeService;
 
     @PostMapping
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Employee> create(@Valid @RequestBody EmployeeRequest request) {
         return Result.success(employeeService.create(request));
     }
 
     @PutMapping("/{empId}")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Employee> update(@PathVariable Integer empId, @Valid @RequestBody EmployeeRequest request) {
         return Result.success(employeeService.update(empId, request));
     }
 
     @DeleteMapping("/{empId}")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Void> delete(@PathVariable Integer empId) {
         employeeService.delete(empId);
         return Result.success();
@@ -47,10 +47,10 @@ public class EmployeeController {
     public Result<Page<Employee>> search(
             @RequestParam(required = false) String empName,
             @RequestParam(required = false) String deptCode,
-            @RequestParam(required = false) String employmentStatus,
+            @RequestParam(required = false) String empStatus,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return Result.success(employeeService.search(empName, deptCode, employmentStatus,
+        return Result.success(employeeService.search(empName, deptCode, empStatus,
                 PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "empId"))));
     }
 }

@@ -61,10 +61,16 @@ const router = createRouter({
       component: () => import('@/views/SettingsView.vue')
     },
     {
-      path: '/system',
-      name: 'system',
-      component: () => import('@/views/SystemView.vue'),
-      meta: { requireSuperAdmin: true }
+      path: '/user-permissions',
+      name: 'user-permissions',
+      component: () => import('@/views/UserPermissionView.vue'),
+      meta: { requireAdmin: true }
+    },
+    {
+      path: '/employee-comprehensive',
+      name: 'employee-comprehensive',
+      component: () => import('@/views/EmployeeComprehensiveView.vue'),
+      meta: { requireAdmin: true }
     },
     {
       path: '/projects',
@@ -123,8 +129,6 @@ router.beforeEach((to, _from, next) => {
   if (!to.meta.public && !auth.isLoggedIn) {
     next('/login')
   } else if (to.path === '/login' && auth.isLoggedIn) {
-    next('/dashboard')
-  } else if (to.meta.requireSuperAdmin && !auth.isSuperAdmin) {
     next('/dashboard')
   } else if (to.meta.requireAdmin && auth.user?.role === 'USER') {
     next('/dashboard')

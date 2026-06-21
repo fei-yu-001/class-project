@@ -21,10 +21,10 @@ public class PositionChangeController {
     public Result<List<PositionChange>> getByEmployee(@PathVariable Integer empId) { return Result.success(positionChangeService.getChangesByEmployee(empId)); }
 
     @PostMapping
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<PositionChange> create(@RequestBody PositionChange change) { return Result.success(positionChangeService.createChange(change)); }
 
     @DeleteMapping("/{id}")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Void> delete(@PathVariable Integer id) { positionChangeService.deleteChange(id); return Result.success(); }
 }

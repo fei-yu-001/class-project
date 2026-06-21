@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import GlassModal from '@/components/GlassModal.vue'
+import ToastMessage from '@/components/ToastMessage.vue'
 import {
   searchEmployees, createEmployee, updateEmployee, deleteEmployee
 } from '@/api/employee'
@@ -27,6 +28,10 @@ const searchStatus = ref('')
 const showModal = ref(false)
 const isEdit = ref(false)
 const editEmpId = ref<number | null>(null)
+const toast = ref({ message: '', type: 'info' as 'success' | 'error' | 'info' })
+const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+  toast.value = { message, type }
+}
 const form = ref({
   empName: '', gender: '男',
   posId: '', deptCode: '', hireDate: '', birthDate: '',
@@ -119,8 +124,9 @@ const handleSave = async () => {
     }
     showModal.value = false
     fetchData()
+    showToast(isEdit.value ? '更新成功' : '新增成功', 'success')
   } catch (e: any) {
-    alert(e.message || '操作失败')
+    showToast(e.message || '操作失败', 'error')
   }
 }
 
@@ -129,8 +135,9 @@ const handleDelete = async (empId: number) => {
   try {
     await deleteEmployee(empId)
     fetchData()
+    showToast('删除成功', 'success')
   } catch (e: any) {
-    alert(e.message || '删除失败')
+    showToast(e.message || '删除失败', 'error')
   }
 }
 
@@ -142,7 +149,15 @@ onMounted(() => {
 
 <template>
   <AdminLayout>
+    <ToastMessage :message="toast.message" :type="toast.type" :duration="2600" />
 
+
+        <div class="flex justify-end mb-3">
+          <button v-if="canCreate()" @click="openAdd" class="glass-btn px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm">
+            <Plus class="w-4 h-4" />
+            新增员工
+          </button>
+        </div>
 
         <div class="glass rounded-2xl p-4 mb-5 flex items-center gap-3">
           <div class="relative flex-1 max-w-xs">
@@ -166,11 +181,6 @@ onMounted(() => {
           <button @click="page = 0; fetchData()" class="glass-btn px-4 py-2 rounded-lg text-sm">
             搜索
           </button>
-          <div class="flex-1"></div>
-          <button v-if="canCreate()" @click="openAdd" class="glass-btn px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm">
-            <Plus class="w-4 h-4" />
-            新增员工
-          </button>
         </div>
 
         <div class="glass rounded-2xl overflow-hidden">
@@ -191,7 +201,7 @@ onMounted(() => {
                 <td class="font-medium">{{ row.empName }}</td>
                 <td>{{ row.gender }}</td>
                 <td>
-                  <span class="px-2 py-0.5 rounded-md text-xs bg-primary/20 text-primary">
+                  <span class="px-2 py-0.5 rounded-md text-xs font-semibold bg-teal-100 text-teal-700">
                     {{ getDeptName(row.deptCode) }}
                   </span>
                 </td>
@@ -200,7 +210,7 @@ onMounted(() => {
                 <td>
                   <span
                     class="px-2 py-0.5 rounded-md text-xs"
-                    :class="row.empStatus === '在职' ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger'"
+                    :class="row.empStatus === '在职' ? 'bg-emerald-100 text-emerald-700 font-semibold' : 'bg-red-100 text-red-700 font-semibold'"
                   >
                     {{ row.empStatus }}
                   </span>

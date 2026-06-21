@@ -22,19 +22,19 @@ public class DepartmentController {
     private final DepartmentService departmentService;
 
     @PostMapping
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Department> create(@Valid @RequestBody DepartmentRequest request) {
         return Result.success(departmentService.create(request));
     }
 
     @PutMapping("/{deptCode}")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Department> update(@PathVariable String deptCode, @Valid @RequestBody DepartmentRequest request) {
         return Result.success(departmentService.update(deptCode, request));
     }
 
     @DeleteMapping("/{deptCode}")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Void> delete(@PathVariable String deptCode) {
         departmentService.delete(deptCode);
         return Result.success();

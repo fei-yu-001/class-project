@@ -4,6 +4,8 @@ import com.salary.dto.SalaryBatchGenerateRequest;
 import com.salary.dto.SalaryCalculationPreview;
 import com.salary.dto.SalaryRequest;
 import com.salary.entity.Attendance;
+import com.salary.entity.Bonus;
+import com.salary.entity.Deduction;
 import com.salary.entity.Employee;
 import com.salary.entity.LeaveRequest;
 import com.salary.entity.OvertimeRecord;
@@ -11,6 +13,8 @@ import com.salary.entity.PerformanceReview;
 import com.salary.entity.Position;
 import com.salary.entity.Salary;
 import com.salary.repository.AttendanceRepository;
+import com.salary.repository.BonusRepository;
+import com.salary.repository.DeductionRepository;
 import com.salary.repository.EmployeeRepository;
 import com.salary.repository.LeaveRequestRepository;
 import com.salary.repository.OvertimeRecordRepository;
@@ -56,6 +60,8 @@ public class SalaryServiceImpl implements SalaryService {
     private final LeaveRequestRepository leaveRequestRepository;
     private final OvertimeRecordRepository overtimeRecordRepository;
     private final PerformanceReviewRepository performanceReviewRepository;
+    private final BonusRepository bonusRepository;
+    private final DeductionRepository deductionRepository;
     private final StringRedisTemplate stringRedisTemplate;
     private final CacheManager cacheManager;
 
@@ -132,6 +138,14 @@ public class SalaryServiceImpl implements SalaryService {
     public Salary getById(Integer salaryId) {
         return salaryRepository.findById(salaryId)
                 .orElseThrow(() -> new IllegalArgumentException("工资记录不存在"));
+    }
+
+    @Override
+    public List<Salary> getByEmployee(Integer empId) {
+        if (!employeeRepository.existsById(empId)) {
+            throw new IllegalArgumentException("员工不存在");
+        }
+        return salaryRepository.findByEmpId(empId);
     }
 
     @Override
@@ -252,12 +266,25 @@ public class SalaryServiceImpl implements SalaryService {
                 && approvedLeaveDays.compareTo(BigDecimal.ZERO) == 0;
         BigDecimal fullAttendanceBonus = fullAttendance ? FULL_ATTENDANCE_BONUS : BigDecimal.ZERO;
 
+        BigDecimal extraBonus = bonusRepository.findByEmpIdAndPayPeriod(employee.getEmpId(), payPeriod).stream()
+                .map(Bonus::getPreTaxAmt)
+                .filter(v -> v != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal extraDeduction = deductionRepository.findByEmpIdAndPayPeriod(employee.getEmpId(), payPeriod).stream()
+                .map(Deduction::getDeductAmt)
+                .filter(v -> v != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         BigDecimal grossTotal = baseSalary
                 .add(performanceBonus)
                 .add(fullAttendanceBonus)
                 .add(overtimePay)
+                .add(extraBonus)
                 .setScale(2, RoundingMode.HALF_UP);
-        BigDecimal deductTotal = leaveDeduction.add(attendanceDeduction).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal deductTotal = leaveDeduction
+                .add(attendanceDeduction)
+                .add(extraDeduction)
+                .setScale(2, RoundingMode.HALF_UP);
         BigDecimal netPay = grossTotal.subtract(deductTotal).max(BigDecimal.ZERO)
                 .setScale(2, RoundingMode.HALF_UP);
         Optional<Salary> existingSalary = salaryRepository.findByEmpIdAndPayPeriod(employee.getEmpId(), payPeriod);
@@ -270,6 +297,8 @@ public class SalaryServiceImpl implements SalaryService {
                 .performanceBonus(performanceBonus.setScale(2, RoundingMode.HALF_UP))
                 .fullAttendanceBonus(fullAttendanceBonus.setScale(2, RoundingMode.HALF_UP))
                 .overtimePay(overtimePay.setScale(2, RoundingMode.HALF_UP))
+                .extraBonus(extraBonus.setScale(2, RoundingMode.HALF_UP))
+                .extraDeduction(extraDeduction.setScale(2, RoundingMode.HALF_UP))
                 .attendanceDeduction(attendanceDeduction.setScale(2, RoundingMode.HALF_UP))
                 .leaveDeduction(leaveDeduction.setScale(2, RoundingMode.HALF_UP))
                 .grossTotal(grossTotal)
@@ -324,8 +353,10 @@ public class SalaryServiceImpl implements SalaryService {
         salary.setPerformanceBonus(preview.getPerformanceBonus());
         salary.setFullAttendanceBonus(preview.getFullAttendanceBonus());
         salary.setOvertimePay(preview.getOvertimePay());
+        salary.setExtraBonus(preview.getExtraBonus());
         salary.setLeaveDeduction(preview.getLeaveDeduction());
         salary.setAttendanceDeduction(preview.getAttendanceDeduction());
+        salary.setExtraDeduction(preview.getExtraDeduction());
         salary.setTaxDeduction(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
         salary.setInsuranceDeduction(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
         salary.setGrossTotal(preview.getGrossTotal());

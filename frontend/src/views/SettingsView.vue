@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import AdminLayout from '@/components/AdminLayout.vue'
+import ToastMessage from '@/components/ToastMessage.vue'
 import {
   Palette, Bell, Moon, Globe, Database, Shield,
-  Check, ChevronRight
+  Check, ChevronRight, Settings
 } from 'lucide-vue-next'
+
+const router = useRouter()
 
 interface SettingItem {
   id: string
@@ -68,6 +72,10 @@ const settings = ref<SettingItem[]>([
 ])
 
 const saved = ref(false)
+const toast = ref({ message: '', type: 'info' as 'success' | 'error' | 'info' })
+const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+  toast.value = { message, type }
+}
 
 const handleToggle = (item: SettingItem) => {
   if (item.type === 'toggle') {
@@ -84,9 +92,9 @@ const handleSelect = (item: SettingItem, option: string) => {
 const handleAction = (item: SettingItem) => {
   if (item.id === 'cache') {
     localStorage.clear()
-    alert('缓存已清除')
+    showToast('缓存已清除', 'success')
   } else if (item.id === 'security') {
-    alert('安全设置功能开发中')
+    router.push('/profile')
   }
 }
 
@@ -97,6 +105,7 @@ const handleSave = () => {
   }, {} as any)
   localStorage.setItem('app_settings', JSON.stringify(config))
   saved.value = true
+  showToast('保存成功', 'success')
   setTimeout(() => saved.value = false, 2000)
 }
 
@@ -117,69 +126,80 @@ onMounted(() => {
 
 <template>
   <AdminLayout>
-      <div class="max-w-3xl">
-        <div class="flex items-center justify-between mb-8">
-          <div></div>
-          <button
-            @click="handleSave"
-            class="glass-btn px-6 py-2.5 rounded-xl text-sm flex items-center gap-2"
-          >
-            <Check v-if="saved" class="w-4 h-4" />
-            {{ saved ? '已保存' : '保存设置' }}
-          </button>
-        </div>
+    <ToastMessage :message="toast.message" :type="toast.type" :duration="2600" />
+    <div class="max-w-3xl mx-auto">
+      <h1 class="text-2xl font-bold text-text-primary mb-6">系统设置</h1>
 
-        <div class="space-y-3">
-          <div
-            v-for="item in settings"
-            :key="item.id"
-            class="glass rounded-2xl p-5 flex items-center justify-between hover:-translate-y-0.5 transition-all duration-200"
-          >
-            <div class="flex items-center gap-4">
-              <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: rgba(255,255,255,0.05);">
-                <component :is="item.icon" class="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <h3 class="text-sm font-medium">{{ item.title }}</h3>
-                <p class="text-xs text-text-muted">{{ item.description }}</p>
-              </div>
-            </div>
-
-            <div v-if="item.type === 'toggle'" class="flex items-center">
-              <button
-                @click="handleToggle(item)"
-                class="w-12 h-6 rounded-full transition-all duration-300 relative"
-                :class="item.value ? 'bg-primary' : 'bg-white/10'"
-              >
-                <div
-                  class="w-5 h-5 rounded-full bg-white absolute top-0.5 transition-all duration-300"
-                  :class="item.value ? 'left-6' : 'left-0.5'"
-                />
-              </button>
-            </div>
-
-            <div v-else-if="item.type === 'select'" class="flex items-center gap-2">
-              <select
-                v-model="item.value"
-                class="glass-input px-3 py-1.5 rounded-lg text-sm"
-                @change="saved = false"
-              >
-                <option v-for="opt in item.options" :key="opt" :value="opt">
-                  {{ opt === 'zh-CN' ? '简体中文' : opt === 'en-US' ? 'English' : opt === 'dark' ? '深色' : opt === 'light' ? '浅色' : '自动' }}
-                </option>
-              </select>
-            </div>
-
-            <button
-              v-else-if="item.type === 'action'"
-              @click="handleAction(item)"
-              class="p-2 rounded-lg hover:bg-white/5 transition-colors"
-            >
-              <ChevronRight class="w-5 h-5 text-text-muted" />
-            </button>
+      <div class="glass rounded-2xl p-6 mb-6">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Settings class="w-6 h-6 text-primary" />
+          </div>
+          <div>
+            <h2 class="text-lg font-semibold text-text-primary">偏好设置</h2>
           </div>
         </div>
-      
       </div>
+
+      <div class="space-y-3">
+        <div
+          v-for="item in settings"
+          :key="item.id"
+          class="glass rounded-2xl p-5 flex items-center justify-between hover:-translate-y-0.5 transition-all duration-200"
+        >
+          <div class="flex items-center gap-4">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: rgba(255,255,255,0.08);">
+              <component :is="item.icon" class="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h3 class="text-sm font-medium">{{ item.title }}</h3>
+            </div>
+          </div>
+
+          <div v-if="item.type === 'toggle'" class="flex items-center">
+            <button
+              @click="handleToggle(item)"
+              class="w-12 h-6 rounded-full transition-all duration-300 relative"
+              :class="item.value ? 'bg-primary' : 'bg-white/10'"
+            >
+              <div
+                class="w-5 h-5 rounded-full bg-white absolute top-0.5 transition-all duration-300"
+                :class="item.value ? 'left-6' : 'left-0.5'"
+              />
+            </button>
+          </div>
+
+          <div v-else-if="item.type === 'select'" class="flex items-center gap-2">
+            <select
+              v-model="item.value"
+              class="glass-input px-3 py-1.5 rounded-lg text-sm"
+              @change="saved = false"
+            >
+              <option v-for="opt in item.options" :key="opt" :value="opt">
+                {{ opt === 'zh-CN' ? '简体中文' : opt === 'en-US' ? 'English' : opt === 'dark' ? '深色' : opt === 'light' ? '浅色' : '自动' }}
+              </option>
+            </select>
+          </div>
+
+          <button
+            v-else-if="item.type === 'action'"
+            @click="handleAction(item)"
+            class="p-2 rounded-lg hover:bg-white/5 transition-colors"
+          >
+            <ChevronRight class="w-5 h-5 text-text-muted" />
+          </button>
+        </div>
+      </div>
+
+      <div class="flex justify-end mt-6">
+        <button
+          @click="handleSave"
+          class="glass-btn px-6 py-2.5 rounded-xl text-sm flex items-center gap-2"
+        >
+          <Check v-if="saved" class="w-4 h-4" />
+          {{ saved ? '已保存' : '保存设置' }}
+        </button>
+      </div>
+    </div>
   </AdminLayout>
 </template>

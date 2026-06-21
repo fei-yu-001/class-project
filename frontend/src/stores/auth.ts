@@ -12,11 +12,9 @@ export interface UserInfo {
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserInfo | null>(null)
   const isLoggedIn = computed(() => !!user.value)
-  const isAdmin = computed(() => user.value?.role === 'ADMIN' || user.value?.role === 'SUPER_ADMIN')
-  const isSuperAdmin = computed(() => user.value?.role === 'SUPER_ADMIN')
+  const isAdmin = computed(() => user.value?.role === 'ADMIN')
   const roleLabel = computed(() => {
     const roleMap: Record<string, string> = {
-      'SUPER_ADMIN': '超级管理员',
       'ADMIN': '管理员',
       'USER': '普通用户'
     }
@@ -27,7 +25,12 @@ export const useAuthStore = defineStore('auth', () => {
     const saved = localStorage.getItem('user')
     if (saved) {
       try {
-        user.value = JSON.parse(saved)
+        const parsed = JSON.parse(saved)
+        if (parsed.role === 'SUPER_ADMIN') {
+          parsed.role = 'ADMIN'
+        }
+        user.value = parsed
+        localStorage.setItem('user', JSON.stringify(parsed))
       } catch {
         localStorage.removeItem('user')
         localStorage.removeItem('token')
@@ -47,5 +50,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('token')
   }
 
-  return { user, isLoggedIn, isAdmin, isSuperAdmin, roleLabel, init, setUser, logout }
+  return { user, isLoggedIn, isAdmin, roleLabel, init, setUser, logout }
 })

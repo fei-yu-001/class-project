@@ -24,19 +24,19 @@ public class SalaryController {
     private final SalaryService salaryService;
 
     @PostMapping
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Salary> create(@Valid @RequestBody SalaryRequest request) {
         return Result.success(salaryService.create(request));
     }
 
     @PutMapping("/{salaryId}")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Salary> update(@PathVariable Integer salaryId, @Valid @RequestBody SalaryRequest request) {
         return Result.success(salaryService.update(salaryId, request));
     }
 
     @DeleteMapping("/{salaryId}")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Void> delete(@PathVariable Integer salaryId) {
         salaryService.delete(salaryId);
         return Result.success();
@@ -45,6 +45,11 @@ public class SalaryController {
     @GetMapping("/{salaryId}")
     public Result<Salary> getById(@PathVariable Integer salaryId) {
         return Result.success(salaryService.getById(salaryId));
+    }
+
+    @GetMapping("/employee/{empId}")
+    public Result<List<Salary>> getByEmployee(@PathVariable Integer empId) {
+        return Result.success(salaryService.getByEmployee(empId));
     }
 
     @GetMapping("/search")
@@ -58,25 +63,25 @@ public class SalaryController {
     }
 
     @GetMapping("/preview")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<List<SalaryCalculationPreview>> preview(@RequestParam String payPeriod) {
         return Result.success(salaryService.preview(payPeriod));
     }
 
     @PostMapping("/generate")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<List<Salary>> generate(@Valid @RequestBody SalaryBatchGenerateRequest request) {
         return Result.success("工资已生成", salaryService.generateBatch(request));
     }
 
     @PostMapping("/{salaryId}/approve")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Salary> approve(@PathVariable Integer salaryId) {
         return Result.success("工资已审核", salaryService.approve(salaryId));
     }
 
     @PostMapping("/{salaryId}/pay")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Salary> pay(@PathVariable Integer salaryId) {
         return Result.success("工资已发放", salaryService.pay(salaryId));
     }

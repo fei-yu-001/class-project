@@ -18,7 +18,7 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       host: '0.0.0.0',  // 监听所有网络接口，允许局域网/公网访问
-      allowedHosts: ['salary.feiyu.rest'],
+      allowedHosts: env.VITE_ALLOWED_HOSTS ? env.VITE_ALLOWED_HOSTS.split(',') : true,
       proxy: {
         '/api': {
           target: apiTarget,
@@ -57,7 +57,8 @@ export default defineConfig(({ mode }) => {
     },
     preview: {
       port: 3000,
-      host: '0.0.0.0'
+      host: '0.0.0.0',
+      allowedHosts: true  // 预览模式允许任意域名访问，便于公网/域名验证
     },
     esbuild: {
       // 生产环境移除 console.log/debugger

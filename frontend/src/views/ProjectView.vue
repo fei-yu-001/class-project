@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import GlassModal from '@/components/GlassModal.vue'
+import ToastMessage from '@/components/ToastMessage.vue'
 import { getAllProjects, createProject, updateProject, deleteProject } from '@/api/project'
 import { searchEmployees } from '@/api/employee'
 import {
@@ -11,7 +12,7 @@ import {
   addProjectMember
 } from '@/api/projectMember'
 import { usePermission } from '@/composables/usePermission'
-import { Plus, Pencil, Trash2, FolderKanban, Users, AlertCircle, CheckCircle2, Save } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, FolderKanban, Users, AlertCircle, CheckCircle2, Save, Search } from 'lucide-vue-next'
 
 const { canCreate, canEdit, canDelete } = usePermission()
 
@@ -21,6 +22,10 @@ const employees = ref<any[]>([])
 const showProjectModal = ref(false)
 const isEdit = ref(false)
 const editProjId = ref<number | null>(null)
+const toast = ref({ message: '', type: 'info' as 'success' | 'error' | 'info' })
+const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+  toast.value = { message, type }
+}
 
 const projectForm = ref({
   projName: '',
@@ -28,6 +33,13 @@ const projectForm = ref({
 })
 
 const statusOptions = ['进行中', '已完成', '已暂停']
+
+const search = ref({
+  projId: '',
+  projName: '',
+  projStatus: ''
+})
+
 const statusColor: Record<string, string> = {
   '进行中': 'text-blue-600 bg-blue-50',
   '已完成': 'text-green-600 bg-green-50',
@@ -46,10 +58,10 @@ const empMap = ref<Record<number, string>>({})
 const loadEmployees = async () => {
   try {
     const res: any = await searchEmployees({ page: 0, size: 9999 })
-    employees.value = res.data?.content || res.data || []
+    employees.value = res.data?.content || []
     const map: Record<number, string> = {}
     employees.value.forEach((e: any) => {
-      if (e.empId) map[e.empId] = e.empName || e.name || ''
+      if (e.empId) map[e.empId] = e.empName || ''
     })
     empMap.value = map
   } catch (e) {
@@ -69,6 +81,24 @@ const fetchData = async () => {
     console.error(e)
   }
 }
+
+const filteredProjects = computed(() => {
+  return projects.value.filter((p: any) => {
+    if (search.value.projId && String(p.projId) !== search.value.projId) return false
+    if (search.value.projName && !(p.projName || '').includes(search.value.projName)) return false
+    if (search.value.projStatus && p.projStatus !== search.value.projStatus) return false
+    return true
+  })
+})
+
+const page = ref(0)
+const pageSize = ref(10)
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredProjects.value.length / pageSize.value)))
+const pagedProjects = computed(() => {
+  const start = page.value * pageSize.value
+  return filteredProjects.value.slice(start, start + pageSize.value)
+})
+watch(search, () => { page.value = 0 }, { deep: true })
 
 // === 项目 CRUD ===
 const openAddProject = () => {
@@ -99,8 +129,9 @@ const handleSaveProject = async () => {
     }
     showProjectModal.value = false
     fetchData()
+    showToast(isEdit.value ? '更新成功' : '新增成功', 'success')
   } catch (e: any) {
-    alert(e.message || '操作失败')
+    showToast(e.message || '操作失败', 'error')
   }
 }
 const handleDeleteProject = async (id: number) => {
@@ -108,8 +139,9 @@ const handleDeleteProject = async (id: number) => {
   try {
     await deleteProject(id)
     fetchData()
+    showToast('删除成功', 'success')
   } catch (e: any) {
-    alert(e.message || '删除失败')
+    showToast(e.message || '删除失败', 'error')
   }
 }
 
@@ -145,12 +177,12 @@ const getPercent = (v: number) => (Number(v) * 100).toFixed(1) + '%'
 // 添加成员
 const handleAddMember = async () => {
   if (!newMember.value.empId || newMember.value.contribCoeff < 0) {
-    alert('请选择员工并填写有效的贡献系数')
+    showToast('请选择员工并填写有效的贡献系数', 'error')
     return
   }
   // 重复员工检查
   if (projectMembers.value.some(m => m.empId === newMember.value.empId)) {
-    alert('该员工已在项目成员中')
+    showToast('该员工已在项目成员中', 'error')
     return
   }
   try {
@@ -162,8 +194,9 @@ const handleAddMember = async () => {
     })
     newMember.value = { empId: null, roleName: '', contribCoeff: 0 }
     await loadProjectMembers(currentProject.value.projId)
+    showToast('添加成功', 'success')
   } catch (e: any) {
-    alert(e.message || '添加失败')
+    showToast(e.message || '添加失败', 'error')
   }
 }
 
@@ -173,8 +206,9 @@ const handleRemoveMember = async (empId: number) => {
   try {
     await deleteProjectMember(empId, currentProject.value.projId)
     await loadProjectMembers(currentProject.value.projId)
+    showToast('移除成功', 'success')
   } catch (e: any) {
-    alert(e.message || '删除失败')
+    showToast(e.message || '删除失败', 'error')
   }
 }
 
@@ -199,7 +233,7 @@ const handleEqualize = () => {
 // 保存所有成员（批量提交）
 const handleSaveMembers = async () => {
   if (!coeffValid.value) {
-    alert(`贡献系数之和必须等于 1.00 (100%)，当前总和 = ${getPercent(coeffSum.value)}`)
+    showToast(`贡献系数之和必须等于 100%，当前总和 = ${getPercent(coeffSum.value)}`, 'error')
     return
   }
   try {
@@ -211,10 +245,10 @@ const handleSaveMembers = async () => {
         contribCoeff: m.contribCoeff
       }))
     })
-    alert('保存成功！')
+    showToast('保存成功', 'success')
     await loadProjectMembers(currentProject.value.projId)
   } catch (e: any) {
-    alert(e.message || '保存失败')
+    showToast(e.message || '保存失败', 'error')
   }
 }
 
@@ -226,10 +260,35 @@ onMounted(() => {
 
 <template>
   <AdminLayout>
-        <div class="flex items-center justify-between mb-8">
-          <div></div>
+    <ToastMessage :message="toast.message" :type="toast.type" :duration="2600" />
+        <div class="flex items-center justify-between mb-6">
+          <h1 class="text-xl font-bold text-text-primary">项目管理</h1>
+        </div>
+
+        <div class="flex justify-end mb-3">
           <button v-if="canCreate()" @click="openAddProject" class="glass-btn px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm">
             <Plus class="w-4 h-4" /> 新增项目
+          </button>
+        </div>
+
+        <div class="glass rounded-2xl p-4 mb-5 flex flex-wrap items-end gap-3">
+          <div>
+            <label class="text-xs text-text-muted mb-1 block">项目编号</label>
+            <input v-model="search.projId" placeholder="编号" class="glass-input px-3 py-2 rounded-lg text-sm w-28" />
+          </div>
+          <div>
+            <label class="text-xs text-text-muted mb-1 block">项目名称</label>
+            <input v-model="search.projName" placeholder="名称" class="glass-input px-3 py-2 rounded-lg text-sm w-44" />
+          </div>
+          <div>
+            <label class="text-xs text-text-muted mb-1 block">项目状态</label>
+            <select v-model="search.projStatus" class="glass-input px-3 py-2 rounded-lg text-sm w-32">
+              <option value="">全部</option>
+              <option v-for="opt in statusOptions" :key="opt" :value="opt">{{ opt }}</option>
+            </select>
+          </div>
+          <button @click="fetchData" class="glass-btn px-4 py-2 rounded-lg text-sm flex items-center gap-2">
+            <Search class="w-4 h-4" /> 检索
           </button>
         </div>
 
@@ -245,7 +304,7 @@ onMounted(() => {
             </thead>
             <tbody>
               <tr
-                v-for="row in projects"
+                v-for="row in pagedProjects"
                 :key="row.projId"
                 class="border-b border-black/5 hover:bg-white/20 transition-colors"
               >
@@ -274,11 +333,17 @@ onMounted(() => {
                   </div>
                 </td>
               </tr>
-              <tr v-if="projects.length === 0">
+              <tr v-if="pagedProjects.length === 0">
                 <td colspan="4" class="px-5 py-12 text-center text-text-muted">暂无项目数据</td>
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <div v-if="totalPages > 1" class="flex justify-center gap-2 mt-5">
+          <button @click="page--;" :disabled="page <= 0" class="glass-btn-secondary px-4 py-2 rounded-lg text-sm disabled:opacity-40">上一页</button>
+          <span class="px-4 py-2 text-sm text-text-muted">第 {{ page + 1 }} / {{ totalPages }} 页</span>
+          <button @click="page++;" :disabled="page >= totalPages - 1" class="glass-btn-secondary px-4 py-2 rounded-lg text-sm disabled:opacity-40">下一页</button>
         </div>
       
 

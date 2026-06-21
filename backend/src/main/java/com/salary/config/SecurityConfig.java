@@ -40,6 +40,11 @@ public class SecurityConfig {
                         .requestMatchers("/uploads/**", "/api/user/avatar/**").permitAll()
                         // 健康检查
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        // 前端静态资源（SPA 单页应用）
+                        .requestMatchers("/", "/index.html", "/assets/**",
+                                "/*.js", "/*.css", "/*.png", "/*.jpg", "/*.jpeg",
+                                "/*.gif", "/*.webp", "/*.svg", "/*.ico", "/*.json",
+                                "/*.woff", "/*.woff2", "/*.ttf", "/*.eot").permitAll()
                         // API 需要认证
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll()

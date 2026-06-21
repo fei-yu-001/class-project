@@ -4,6 +4,10 @@ export const searchSalaries = (params: any) => {
   return request.get('/salaries/search', { params })
 }
 
+export const getSalariesByEmployee = (empId: number) => {
+  return request.get(`/salaries/employee/${empId}`)
+}
+
 export const createSalary = (data: any) => {
   return request.post('/salaries', data)
 }

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import GlassModal from '@/components/GlassModal.vue'
+import ToastMessage from '@/components/ToastMessage.vue'
 import { listPaymentMethods, createPaymentMethod, updatePaymentMethod, deletePaymentMethod } from '@/api/payment'
 import { searchEmployees } from '@/api/employee'
 import { usePermission } from '@/composables/usePermission'
@@ -15,6 +16,10 @@ const searchKeyword = ref('')
 const showModal = ref(false)
 const isEdit = ref(false)
 const editEmpId = ref<number | null>(null)
+const toast = ref({ message: '', type: 'info' as 'success' | 'error' | 'info' })
+const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+  toast.value = { message, type }
+}
 const form = ref({
   empId: '',
   payType: 'BANK_CARD',
@@ -68,6 +73,15 @@ const filteredPayments = computed(() => {
   })
 })
 
+const page = ref(0)
+const pageSize = ref(10)
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredPayments.value.length / pageSize.value)))
+const pagedPayments = computed(() => {
+  const start = page.value * pageSize.value
+  return filteredPayments.value.slice(start, start + pageSize.value)
+})
+watch(searchKeyword, () => { page.value = 0 })
+
 const openAdd = () => {
   isEdit.value = false
   editEmpId.value = null
@@ -102,8 +116,9 @@ const handleSave = async () => {
     }
     showModal.value = false
     fetchData()
+    showToast(isEdit.value ? '更新成功' : '新增成功', 'success')
   } catch (e: any) {
-    alert(e.message || '操作失败')
+    showToast(e.message || '操作失败', 'error')
   }
 }
 
@@ -112,8 +127,9 @@ const handleDelete = async (empId: number) => {
   try {
     await deletePaymentMethod(empId)
     fetchData()
+    showToast('删除成功', 'success')
   } catch (e: any) {
-    alert(e.message || '删除失败')
+    showToast(e.message || '删除失败', 'error')
   }
 }
 
@@ -122,8 +138,15 @@ onMounted(fetchData)
 
 <template>
   <AdminLayout>
+    <ToastMessage :message="toast.message" :type="toast.type" :duration="2600" />
     <div class="flex items-center justify-between mb-6">
       <h1 class="text-xl font-bold text-text-primary">支付方式</h1>
+    </div>
+
+    <div class="flex justify-end mb-3">
+      <button v-if="canCreate()" @click="openAdd" class="glass-btn px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm">
+        <Plus class="w-4 h-4" /> 新增方式
+      </button>
     </div>
 
     <div class="glass rounded-2xl p-5 mb-6">
@@ -133,10 +156,6 @@ onMounted(fetchData)
           <input v-model="searchKeyword" placeholder="搜索员工姓名、支付方式、卡类型、卡号..." class="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm bg-white/80 border border-black/5 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all" />
         </div>
         <button @click="searchKeyword = ''" class="glass-btn px-5 py-2.5 rounded-xl text-sm whitespace-nowrap">搜索</button>
-        <div class="flex-1"></div>
-        <button v-if="canCreate()" @click="openAdd" class="glass-btn px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm">
-          <Plus class="w-4 h-4" /> 新增方式
-        </button>
       </div>
     </div>
 
@@ -152,11 +171,11 @@ onMounted(fetchData)
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in filteredPayments" :key="row.empId">
+          <tr v-for="row in pagedPayments" :key="row.empId">
             <td class="font-medium">{{ getEmployeeName(row.empId) }}</td>
             <td>
               <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs"
-                :class="isBankCard(row.payType) ? 'bg-primary/20 text-primary' : 'bg-accent/20 text-accent'">
+                :class="isBankCard(row.payType) ? 'bg-teal-600 text-white font-semibold shadow-sm' : 'bg-amber-500 text-white font-semibold shadow-sm'">
                 <CreditCard v-if="isBankCard(row.payType)" class="w-3 h-3" />
                 <Wallet v-else class="w-3 h-3" />
                 {{ getPayTypeLabel(row.payType) }}
@@ -175,11 +194,17 @@ onMounted(fetchData)
               </div>
             </td>
           </tr>
-          <tr v-if="filteredPayments.length === 0">
+          <tr v-if="pagedPayments.length === 0">
             <td colspan="5" class="text-center py-12 text-text-muted">暂无支付方式数据</td>
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <div v-if="totalPages > 1" class="flex justify-center gap-2 mt-5">
+      <button @click="page--;" :disabled="page <= 0" class="glass-btn-secondary px-4 py-2 rounded-lg text-sm disabled:opacity-40">上一页</button>
+      <span class="px-4 py-2 text-sm text-text-muted">第 {{ page + 1 }} / {{ totalPages }} 页</span>
+      <button @click="page++;" :disabled="page >= totalPages - 1" class="glass-btn-secondary px-4 py-2 rounded-lg text-sm disabled:opacity-40">下一页</button>
     </div>
 
     <GlassModal :title="isEdit ? '编辑支付方式' : '新增支付方式'" :visible="showModal" @close="showModal = false">

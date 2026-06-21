@@ -17,13 +17,13 @@ public class AdminController {
     private final AdminService adminService;
 
     @GetMapping("/users")
-    @RequireRole("SUPER_ADMIN")
+    @RequireRole("ADMIN")
     public Result<List<User>> listUsers() {
         return Result.success(adminService.listUsers());
     }
 
     @PutMapping("/users/{id}/role")
-    @RequireRole("SUPER_ADMIN")
+    @RequireRole("ADMIN")
     public Result<User> updateUserRole(@PathVariable Integer id, @RequestParam String role) {
         try {
             return Result.success(adminService.updateUserRole(id, role));
@@ -33,7 +33,7 @@ public class AdminController {
     }
 
     @PutMapping("/users/{id}/status")
-    @RequireRole("SUPER_ADMIN")
+    @RequireRole("ADMIN")
     public Result<User> updateUserStatus(@PathVariable Integer id, @RequestParam Boolean enabled) {
         try {
             return Result.success(adminService.updateUserStatus(id, enabled));

@@ -1,10 +1,11 @@
 import axios, { type AxiosError, type AxiosRequestConfig } from 'axios'
 
 // 创建 axios 实例
-// baseURL 使用相对路径 '/api'，生产环境通过 Nginx 反向代理到后端
+// 优先使用环境变量 VITE_API_BASE_URL（如 https://api.example.com/api）
+// 未配置时使用相对路径 '/api'，生产环境通过 Nginx 反向代理到后端
 // 开发环境通过 Vite 代理转发
 const request = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   timeout: 30000,  // 30秒超时，公网环境下可能更慢
   // 允许携带 cookie（如未来需要 session 认证）
   withCredentials: false

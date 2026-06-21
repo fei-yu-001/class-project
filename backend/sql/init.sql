@@ -159,8 +159,10 @@ CREATE TABLE salary_record(
           performance_bonus DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'performance_bonus',
           full_attendance_bonus DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'full_attendance_bonus',
           overtime_pay DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'overtime_pay',
+          extra_bonus DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'extra_bonus',
           leave_deduction DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'leave_deduction',
           attendance_deduction DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'attendance_deduction',
+          extra_deduction DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'extra_deduction',
           tax_deduction DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'tax_deduction',
           insurance_deduction DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'insurance_deduction',
           status VARCHAR(20) NOT NULL DEFAULT 'GENERATED' COMMENT 'status',
@@ -175,9 +177,14 @@ CREATE TABLE salary_record(
 -- 14. bonus
 CREATE TABLE bonus(
   bonus_id INT NOT NULL AUTO_INCREMENT COMMENT 'bonus_id',
+  emp_id INT NOT NULL COMMENT 'emp_id',
+  pay_period VARCHAR(7) NOT NULL COMMENT 'pay_period',
   bonus_type VARCHAR(20) NOT NULL COMMENT 'bonus_type',
   pre_tax_amt DECIMAL(10,2) NOT NULL COMMENT 'pre_tax_amt',
-  PRIMARY KEY(bonus_id)
+  remark VARCHAR(255) DEFAULT NULL COMMENT 'remark',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'created_at',
+  PRIMARY KEY(bonus_id),
+  FOREIGN KEY(emp_id) REFERENCES employee(emp_id) ON DELETE CASCADE ON UPDATE CASCADE
 )ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='bonus';
 
 -- sal_bonus_rel (M:N)
@@ -192,9 +199,14 @@ CREATE TABLE sal_bonus_rel(
 -- 15. deduction
 CREATE TABLE deduction(
       deduct_id INT NOT NULL AUTO_INCREMENT COMMENT 'deduct_id',
+      emp_id INT NOT NULL COMMENT 'emp_id',
+      pay_period VARCHAR(7) NOT NULL COMMENT 'pay_period',
       deduct_type VARCHAR(20) NOT NULL COMMENT 'deduct_type',
       deduct_amt DECIMAL(10,2) NOT NULL COMMENT 'deduct_amt',
-      PRIMARY KEY(deduct_id)
+      remark VARCHAR(255) DEFAULT NULL COMMENT 'remark',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'created_at',
+      PRIMARY KEY(deduct_id),
+      FOREIGN KEY(emp_id) REFERENCES employee(emp_id) ON DELETE CASCADE ON UPDATE CASCADE
 )ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='deduction';
 
 -- sal_deduct_rel (M:N)
@@ -215,7 +227,9 @@ CREATE INDEX idx_emp_name ON employee(emp_name);
 CREATE INDEX idx_emp_status ON employee(emp_status);
 CREATE INDEX idx_sal_period ON salary_record(pay_period);
 CREATE INDEX idx_bonus_type ON bonus(bonus_type);
+CREATE INDEX idx_bonus_emp_period ON bonus(emp_id, pay_period);
 CREATE INDEX idx_deduct_type ON deduction(deduct_type);
+CREATE INDEX idx_deduct_emp_period ON deduction(emp_id, pay_period);
 CREATE INDEX idx_perf_emp ON performance(emp_id);
 CREATE INDEX idx_perf_period ON performance(review_period);
 CREATE INDEX idx_att_emp ON attendance(emp_id);
@@ -353,13 +367,13 @@ INSERT INTO salary_record (
 (1002, 6000.00, '2026-05', 6600.00, 0.00, 6600.00, 300.00, 300.00, 0.00, 0.00, 0.00, 0.00, 0.00, 'APPROVED', '2026-05-31 10:00:00', '2026-05-31 11:00:00', NULL),
 (1003, 5000.00, '2026-05', 5000.00, 50.00, 4950.00, 0.00, 0.00, 0.00, 0.00, 50.00, 0.00, 0.00, 'GENERATED', '2026-05-31 10:00:00', NULL, NULL);
 
-INSERT INTO bonus (bonus_type, pre_tax_amt) VALUES
-('项目奖', 1000.00),
-('绩效奖', 500.00);
+INSERT INTO bonus (emp_id, pay_period, bonus_type, pre_tax_amt, remark) VALUES
+(1001, '2026-05', '项目奖', 1000.00, '季度项目分红'),
+(1002, '2026-05', '绩效奖', 500.00, '月度绩效奖励');
 
-INSERT INTO deduction (deduct_type, deduct_amt) VALUES
-('个人所得税', 500.00),
-('社保', 300.00);
+INSERT INTO deduction (emp_id, pay_period, deduct_type, deduct_amt, remark) VALUES
+(1001, '2026-05', '个人所得税', 500.00, '代扣个税'),
+(1001, '2026-05', '社保', 300.00, '代扣社保');
 
 INSERT INTO sal_bonus_rel (salary_id, bonus_id) VALUES
 (1, 1),

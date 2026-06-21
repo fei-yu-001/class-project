@@ -13,4 +13,8 @@ public interface BonusRepository extends JpaRepository<Bonus, Integer> {
 
     @Query(value = "SELECT b.* FROM bonus b JOIN sal_bonus_rel r ON b.bonus_id = r.bonus_id WHERE r.salary_id = :salaryId", nativeQuery = true)
     List<Bonus> findBySalaryId(@Param("salaryId") Integer salaryId);
+
+    List<Bonus> findByEmpIdAndPayPeriod(Integer empId, String payPeriod);
+
+    List<Bonus> findByEmpId(Integer empId);
 }

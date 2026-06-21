@@ -1,19 +1,22 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import GlassModal from '@/components/GlassModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import ToastMessage from '@/components/ToastMessage.vue'
 import {
   searchSalaries, createSalary, updateSalary, deleteSalary,
-  previewSalaries, generateSalaries, approveSalary, paySalary
+  previewSalaries, generateSalaries, approveSalary, paySalary,
+  getSalariesByEmployee
 } from '@/api/salary'
 import { searchEmployees } from '@/api/employee'
 import { usePermission } from '@/composables/usePermission'
 import {
   Search, Plus, Pencil, Trash2, Calendar, Calculator, RefreshCw,
-  CheckCircle, WalletCards
+  CheckCircle, WalletCards, FileSpreadsheet, FileText, History,
+  X, ChevronDown
 } from 'lucide-vue-next'
+import * as XLSX from 'xlsx'
 
 const { canCreate, canEdit, canDelete } = usePermission()
 
@@ -38,9 +41,17 @@ const confirmState = ref({
   action: null as null | (() => Promise<void>)
 })
 
+const selectedRowIds = ref<Set<number>>(new Set())
+const showSelectedOnly = ref(false)
+const showPrintMenu = ref(false)
+
 const showModal = ref(false)
 const isEdit = ref(false)
 const editId = ref<number | null>(null)
+
+const showHistoryModal = ref(false)
+const historyRows = ref<any[]>([])
+const historyLoading = ref(false)
 
 const form = ref({
   empId: '',
@@ -52,18 +63,19 @@ const form = ref({
 })
 
 const getEmployeeName = (empId: number) => {
-  const emp = employees.value.find(e => e.empId === empId || e.id === empId)
-  return emp?.empName || emp?.name || '-'
+  const emp = employees.value.find(e => e.empId === empId)
+  return emp?.empName || '-'
 }
 
 const fetchData = async () => {
   try {
-    const res: any = await searchSalaries({
-      empId: searchEmpId.value || undefined,
+    const params: any = {
       payPeriod: searchPayPeriod.value || undefined,
       page: page.value,
       size: 10
-    })
+    }
+    if (searchEmpId.value) params.empId = Number(searchEmpId.value)
+    const res: any = await searchSalaries(params)
     salaries.value = res.data.content
     totalPages.value = res.data.totalPages
   } catch (e) {
@@ -89,6 +101,15 @@ const money = (value: any) => Number(value || 0).toLocaleString('zh-CN', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2
 })
+
+const statusLabel = (status?: string) => {
+  const map: Record<string, string> = {
+    GENERATED: '已生成',
+    APPROVED: '已审核',
+    PAID: '已发放'
+  }
+  return map[status || ''] || '已生成'
+}
 
 const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
   toast.value = { message: `${message} `, type }
@@ -155,13 +176,21 @@ const handleGenerate = async () => {
     action: async () => {
       generateLoading.value = true
       try {
-        await generateSalaries({
+        const payload: any = {
           payPeriod: previewPeriod.value,
           overwriteUnpaid: overwriteUnpaid.value
-        })
+        }
+        if (selectedRowIds.value.size > 0) {
+          payload.empIds = salaries.value
+            .filter(s => selectedRowIds.value.has(s.salaryId))
+            .map(s => s.empId)
+        }
+        await generateSalaries(payload)
         await handlePreview()
         searchPayPeriod.value = previewPeriod.value
         page.value = 0
+        selectedRowIds.value.clear()
+        showSelectedOnly.value = false
         fetchData()
         showToast('工资已生成', 'success')
       } catch (e: any) {
@@ -253,6 +282,7 @@ const handleDelete = async (row: any) => {
     action: async () => {
       try {
         await deleteSalary(row.salaryId)
+        selectedRowIds.value.delete(row.salaryId)
         showToast('删除成功', 'success')
         fetchData()
       } catch (e: any) {
@@ -260,6 +290,169 @@ const handleDelete = async (row: any) => {
       }
     }
   })
+}
+
+// 选中框逻辑
+const displaySalaries = computed(() => {
+  if (showSelectedOnly.value) {
+    return salaries.value.filter(s => selectedRowIds.value.has(s.salaryId))
+  }
+  return salaries.value
+})
+
+const allSelected = computed(() => {
+  return displaySalaries.value.length > 0 && displaySalaries.value.every(r => selectedRowIds.value.has(r.salaryId))
+})
+
+const toggleSelectAll = () => {
+  if (allSelected.value) {
+    displaySalaries.value.forEach(r => selectedRowIds.value.delete(r.salaryId))
+  } else {
+    displaySalaries.value.forEach(r => selectedRowIds.value.add(r.salaryId))
+  }
+}
+
+const toggleRow = (id: number) => {
+  if (selectedRowIds.value.has(id)) {
+    selectedRowIds.value.delete(id)
+  } else {
+    selectedRowIds.value.add(id)
+  }
+}
+
+const selectedRows = computed(() => {
+  return salaries.value.filter(s => selectedRowIds.value.has(s.salaryId))
+})
+
+const exportTargetRows = computed(() => {
+  return selectedRows.value.length > 0 ? selectedRows.value : displaySalaries.value
+})
+
+const historyEmpId = computed(() => {
+  if (searchEmpId.value) return Number(searchEmpId.value)
+  if (selectedRows.value.length === 1) return selectedRows.value[0].empId
+  return null
+})
+
+const handleSearch = () => {
+  page.value = 0
+  if (selectedRowIds.value.size > 0) {
+    showSelectedOnly.value = true
+  } else {
+    showSelectedOnly.value = false
+    fetchData()
+  }
+}
+
+const clearSelection = () => {
+  selectedRowIds.value.clear()
+  showSelectedOnly.value = false
+}
+
+const baseColumns = [
+  { key: 'empName', title: '员工' },
+  { key: 'payPeriod', title: '工资周期' },
+  { key: 'baseSnap', title: '基本工资' },
+  { key: 'performanceBonus', title: '绩效奖金' },
+  { key: 'fullAttendanceBonus', title: '全勤奖' },
+  { key: 'overtimePay', title: '加班工资' },
+  { key: 'extraBonus', title: '其他奖金' },
+  { key: 'leaveDeduction', title: '请假扣款' },
+  { key: 'attendanceDeduction', title: '考勤扣款' },
+  { key: 'extraDeduction', title: '其他罚款' },
+  { key: 'grossTotal', title: '应发总额' },
+  { key: 'deductTotal', title: '扣除总额' },
+  { key: 'netPay', title: '实发工资' },
+  { key: 'status', title: '状态' }
+]
+
+const exportExcel = () => {
+  const rows = exportTargetRows.value.map(r => ({
+    员工: getEmployeeName(r.empId),
+    工资周期: r.payPeriod,
+    基本工资: Number(r.baseSnap || 0),
+    绩效奖金: Number(r.performanceBonus || 0),
+    全勤奖: Number(r.fullAttendanceBonus || 0),
+    加班工资: Number(r.overtimePay || 0),
+    其他奖金: Number(r.extraBonus || 0),
+    请假扣款: Number(r.leaveDeduction || 0),
+    考勤扣款: Number(r.attendanceDeduction || 0),
+    其他罚款: Number(r.extraDeduction || 0),
+    应发总额: Number(r.grossTotal || 0),
+    扣除总额: Number(r.deductTotal || 0),
+    实发工资: Number(r.netPay || 0),
+    状态: statusLabel(r.status)
+  }))
+  const ws = XLSX.utils.json_to_sheet(rows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, '工资表')
+  XLSX.writeFile(wb, `工资表_${new Date().toISOString().slice(0, 10)}.xlsx`)
+}
+
+const printPDF = () => {
+  const rows = exportTargetRows.value.map(r => `
+    <tr>
+      <td>${getEmployeeName(r.empId)}</td>
+      <td>${r.payPeriod}</td>
+      <td>${money(r.baseSnap)}</td>
+      <td>${money(r.performanceBonus)}</td>
+      <td>${money(r.fullAttendanceBonus)}</td>
+      <td>${money(r.overtimePay)}</td>
+      <td>${money(r.extraBonus)}</td>
+      <td>${money(r.leaveDeduction)}</td>
+      <td>${money(r.attendanceDeduction)}</td>
+      <td>${money(r.extraDeduction)}</td>
+      <td>${money(r.grossTotal)}</td>
+      <td>${money(r.deductTotal)}</td>
+      <td>${money(r.netPay)}</td>
+      <td>${statusLabel(r.status)}</td>
+    </tr>
+  `).join('')
+  const html = `
+    <html>
+      <head>
+        <title>工资表</title>
+        <style>
+          body { font-family: "Microsoft YaHei", sans-serif; padding: 24px; }
+          h2 { text-align: center; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+          th { background: #4f46e5; color: #fff; }
+        </style>
+      </head>
+      <body>
+        <h2>工资表</h2>
+        <table>
+          <thead>
+            <tr>${baseColumns.map(c => `<th>${c.title}</th>`).join('')}</tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </body>
+    </html>
+  `
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) return
+  printWindow.document.write(html)
+  printWindow.document.close()
+  printWindow.focus()
+  setTimeout(() => printWindow.print(), 300)
+}
+
+const openHistory = async () => {
+  const empId = historyEmpId.value
+  if (!empId) return
+  historyLoading.value = true
+  showHistoryModal.value = true
+  try {
+    const res: any = await getSalariesByEmployee(empId)
+    historyRows.value = res.data || []
+  } catch (e: any) {
+    showToast(e.message || '获取历史工资失败', 'error')
+    historyRows.value = []
+  } finally {
+    historyLoading.value = false
+  }
 }
 
 onMounted(() => {
@@ -281,182 +474,244 @@ onMounted(() => {
       @confirm="runConfirm"
       @cancel="confirmState.visible = false"
     />
-        <div class="flex items-center justify-between mb-8">
-          <div>
-            <h1 class="text-2xl font-semibold text-gray-800">工资核算</h1>
-          </div>
-          <button v-if="canCreate()" @click="openAdd" class="glass-btn px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm">
-            <Plus class="w-4 h-4" />
-            手工新增
-          </button>
-        </div>
+    <div class="mb-8">
+      <h1 class="text-2xl font-semibold text-gray-800">工资核算</h1>
+    </div>
 
-        <div class="glass rounded-2xl p-4 mb-5">
-          <div class="flex flex-wrap items-center gap-3 mb-4">
-            <div class="relative w-44">
-              <Calendar class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-              <input
-                v-model="previewPeriod"
-                placeholder="计薪周期 2026-05"
-                class="glass-input w-full pl-9 pr-4 py-2 rounded-lg text-sm"
-              />
-            </div>
-            <label class="inline-flex items-center gap-2 text-sm text-gray-700">
-              <input v-model="overwriteUnpaid" type="checkbox" class="accent-primary" />
-              覆盖未发放记录
-            </label>
+    <div class="glass rounded-2xl p-4 mb-5">
+      <div class="flex flex-wrap items-center gap-3 mb-4">
+        <div class="relative w-44">
+          <Calendar class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+          <input
+            v-model="previewPeriod"
+            placeholder="计薪周期 2026-05"
+            class="glass-input w-full pl-9 pr-4 py-2 rounded-lg text-sm"
+          />
+        </div>
+        <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+          <input v-model="overwriteUnpaid" type="checkbox" class="accent-primary" />
+          覆盖未发放记录
+        </label>
+        <button
+          v-if="canEdit()"
+          @click="handlePreview"
+          :disabled="previewLoading"
+          class="glass-btn-secondary px-4 py-2 rounded-lg text-sm flex items-center gap-2 disabled:opacity-50"
+        >
+          <Calculator class="w-4 h-4" />
+          {{ previewLoading ? '计算中...' : '计算预览' }}
+        </button>
+        <div class="relative">
+          <button
+            @click="showPrintMenu = !showPrintMenu"
+            class="glass-btn px-4 py-2 rounded-lg text-sm flex items-center gap-2"
+          >
+            <FileText class="w-4 h-4" />
+            打印
+            <ChevronDown class="w-3 h-3" />
+          </button>
+          <div
+            v-if="showPrintMenu"
+            class="absolute right-0 mt-2 w-40 glass rounded-xl shadow-lg py-1 z-20"
+          >
             <button
-              v-if="canEdit()"
-              @click="handlePreview"
-              :disabled="previewLoading"
-              class="glass-btn-secondary px-4 py-2 rounded-lg text-sm flex items-center gap-2 disabled:opacity-50"
+              @click="exportExcel(); showPrintMenu = false"
+              class="w-full text-left px-4 py-2 text-sm hover:bg-white/10 flex items-center gap-2"
             >
-              <Calculator class="w-4 h-4" />
-              {{ previewLoading ? '计算中...' : '计算预览' }}
+              <FileSpreadsheet class="w-4 h-4" /> 导出 Excel
             </button>
             <button
-              v-if="canCreate()"
-              @click="handleGenerate"
-              :disabled="generateLoading"
-              class="glass-btn px-4 py-2 rounded-lg text-sm flex items-center gap-2 disabled:opacity-50"
+              @click="printPDF(); showPrintMenu = false"
+              class="w-full text-left px-4 py-2 text-sm hover:bg-white/10 flex items-center gap-2"
             >
-              <RefreshCw class="w-4 h-4" />
-              {{ generateLoading ? '生成中...' : '生成本期工资' }}
+              <FileText class="w-4 h-4" /> 打印 PDF
             </button>
           </div>
-
-          <div v-if="previewRows.length > 0" class="overflow-x-auto">
-            <table class="glass-table text-sm">
-              <thead>
-                <tr>
-                  <th>员工</th>
-                  <th>基本工资</th>
-                  <th>绩效</th>
-                  <th>全勤奖</th>
-                  <th>加班</th>
-                  <th>请假扣款</th>
-                  <th>考勤扣款</th>
-                  <th>实发</th>
-                  <th>状态</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="row in previewRows" :key="row.empId">
-                  <td>{{ row.empName }}</td>
-                  <td>¥{{ money(row.baseSalary) }}</td>
-                  <td>{{ row.performanceGrade || '-' }} / ¥{{ money(row.performanceBonus) }}</td>
-                  <td>+¥{{ money(row.fullAttendanceBonus) }}</td>
-                  <td>{{ row.approvedOvertimeHours }}h / +¥{{ money(row.overtimePay) }}</td>
-                  <td>{{ row.approvedLeaveDays }}天 / -¥{{ money(row.leaveDeduction) }}</td>
-                  <td>
-                    缺勤{{ row.absenceCount }} 迟到{{ row.lateCount }} 早退{{ row.earlyLeaveCount }}
-                    / -¥{{ money(row.attendanceDeduction) }}
-                  </td>
-                  <td class="font-bold text-primary">¥{{ money(row.netPay) }}</td>
-                  <td>
-                    <span
-                      class="px-2 py-0.5 rounded-md text-xs"
-                      :class="row.generated ? 'bg-success/20 text-success' : 'bg-accent/20 text-accent'"
-                    >
-                      {{ row.status || (row.generated ? '已生成' : '未生成') }}
-                    </span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
         </div>
+      </div>
 
-        <div class="glass rounded-2xl p-4 mb-5 flex items-center gap-3">
-          <div class="relative flex-1 max-w-xs">
-            <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-            <input
-              v-model="searchEmpId"
-              placeholder="员工ID"
-              class="glass-input w-full pl-9 pr-4 py-2 rounded-lg text-sm"
-              @keyup.enter="page = 0; fetchData()"
-            />
-          </div>
-          <div class="relative flex-1 max-w-xs">
-            <Calendar class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-            <input
-              v-model="searchPayPeriod"
-              placeholder="工资周期 (如: 2024-05)"
-              class="glass-input w-full pl-9 pr-4 py-2 rounded-lg text-sm"
-              @keyup.enter="page = 0; fetchData()"
-            />
-          </div>
-          <button @click="page = 0; fetchData()" class="glass-btn px-4 py-2 rounded-lg text-sm">
-            搜索
-          </button>
-        </div>
+      <div v-if="previewRows.length > 0" class="overflow-x-auto">
+        <table class="glass-table text-sm">
+          <thead>
+            <tr>
+              <th>员工</th>
+              <th>基本工资</th>
+              <th>绩效</th>
+              <th>全勤奖</th>
+              <th>加班</th>
+              <th>其他奖金</th>
+              <th>请假扣款</th>
+              <th>考勤扣款</th>
+              <th>其他罚款</th>
+              <th>实发</th>
+              <th>状态</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in previewRows" :key="row.empId">
+              <td>{{ row.empName }}</td>
+              <td>¥{{ money(row.baseSalary) }}</td>
+              <td>{{ row.performanceGrade || '-' }} / ¥{{ money(row.performanceBonus) }}</td>
+              <td>+¥{{ money(row.fullAttendanceBonus) }}</td>
+              <td>{{ row.approvedOvertimeHours }}h / +¥{{ money(row.overtimePay) }}</td>
+              <td class="text-amber-700">+¥{{ money(row.extraBonus) }}</td>
+              <td>{{ row.approvedLeaveDays }}天 / -¥{{ money(row.leaveDeduction) }}</td>
+              <td>
+                缺勤{{ row.absenceCount }} 迟到{{ row.lateCount }} 早退{{ row.earlyLeaveCount }}
+                / -¥{{ money(row.attendanceDeduction) }}
+              </td>
+              <td class="text-red-700">-¥{{ money(row.extraDeduction) }}</td>
+              <td class="font-bold text-primary">¥{{ money(row.netPay) }}</td>
+              <td>
+                <span
+                  class="px-2 py-0.5 rounded-md text-xs"
+                  :class="row.generated ? 'bg-emerald-100 text-emerald-700 font-semibold' : 'bg-amber-100 text-amber-700 font-semibold'"
+                >
+                  {{ row.status || (row.generated ? '已生成' : '未生成') }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
 
-        <div class="glass rounded-2xl overflow-hidden">
-          <table class="glass-table">
-            <thead>
-              <tr>
-                <th>员工</th>
-                <th>工资周期</th>
-                <th>基本工资</th>
-                <th>绩效/全勤/加班</th>
-                <th>请假/考勤扣款</th>
-                <th>应发总额</th>
-                <th>扣除总额</th>
-                <th>实发工资</th>
-                <th>状态</th>
-                <th style="text-align: center !important; width: 160px;">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in salaries" :key="row.salaryId">
-                <td class="font-medium">{{ getEmployeeName(row.empId) }}</td>
-                <td>{{ row.payPeriod }}</td>
-                <td>¥{{ money(row.baseSnap) }}</td>
-                <td>¥{{ money(row.performanceBonus) }} / ¥{{ money(row.fullAttendanceBonus) }} / ¥{{ money(row.overtimePay) }}</td>
-                <td>¥{{ money(row.leaveDeduction) }} / ¥{{ money(row.attendanceDeduction) }}</td>
-                <td class="text-success">+¥{{ money(row.grossTotal) }}</td>
-                <td class="text-danger">-¥{{ money(row.deductTotal) }}</td>
-                <td class="font-bold text-primary">¥{{ money(row.netPay) }}</td>
-                <td>
-                  <span class="px-2 py-0.5 rounded-md text-xs"
-                    :class="{
-                      'bg-accent/20 text-accent': row.status === 'GENERATED',
-                      'bg-primary/20 text-primary': row.status === 'APPROVED',
-                      'bg-success/20 text-success': row.status === 'PAID'
-                    }">
-                    {{ row.status || 'GENERATED' }}
-                  </span>
-                </td>
-                <td style="text-align: center !important; width: 160px;">
-                  <div class="flex items-center justify-center gap-1">
-                    <button v-if="canEdit() && row.status !== 'PAID'" @click="handleApprove(row)" class="flex items-center justify-center w-7 h-7 rounded-lg hover:bg-primary/20 text-primary transition-colors" title="审核">
-                      <CheckCircle class="w-3.5 h-3.5" />
-                    </button>
-                    <button v-if="canEdit() && row.status === 'APPROVED'" @click="handlePay(row)" class="flex items-center justify-center w-7 h-7 rounded-lg hover:bg-success/20 text-success transition-colors" title="发放">
-                      <WalletCards class="w-3.5 h-3.5" />
-                    </button>
-                    <button v-if="canEdit() && row.status !== 'PAID'" @click="openEdit(row)" class="flex items-center justify-center w-7 h-7 rounded-lg hover:bg-primary/20 text-primary transition-colors" title="编辑">
-                      <Pencil class="w-3.5 h-3.5" />
-                    </button>
-                    <button v-if="canDelete() && row.status !== 'PAID'" @click="handleDelete(row)" class="flex items-center justify-center w-7 h-7 rounded-lg hover:bg-danger/20 text-danger transition-colors" title="删除">
-                      <Trash2 class="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-              <tr v-if="salaries.length === 0">
-                <td colspan="10" class="text-center py-12 text-text-muted">暂无数据</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+    <div class="glass rounded-2xl p-4 mb-5 flex flex-wrap items-center gap-3">
+      <select
+        v-model="searchEmpId"
+        class="glass-input px-3 py-2 rounded-lg text-sm min-w-[160px]"
+      >
+        <option value="">全部员工</option>
+        <option v-for="e in employees" :key="e.empId" :value="String(e.empId)">{{ e.empName }}</option>
+      </select>
+      <div class="relative">
+        <Calendar class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+        <input
+          v-model="searchPayPeriod"
+          placeholder="工资周期 (如: 2024-05)"
+          class="glass-input pl-9 pr-4 py-2 rounded-lg text-sm w-52"
+          @keyup.enter="handleSearch"
+        />
+      </div>
+      <button @click="handleSearch" class="glass-btn px-4 py-2 rounded-lg text-sm flex items-center gap-2">
+        <Search class="w-4 h-4" />
+        {{ selectedRowIds.size > 0 ? '显示选中' : '搜索' }}
+      </button>
+      <button
+        v-if="selectedRowIds.size > 0 || showSelectedOnly"
+        @click="clearSelection"
+        class="glass-btn-secondary px-3 py-2 rounded-lg text-sm flex items-center gap-1"
+      >
+        <X class="w-3.5 h-3.5" /> 清除选中
+      </button>
+      <button
+        v-if="historyEmpId"
+        @click="openHistory"
+        class="glass-btn-secondary px-4 py-2 rounded-lg text-sm flex items-center gap-2"
+      >
+        <History class="w-4 h-4" /> 历史工资记录
+      </button>
+    </div>
 
-        <div class="flex justify-center gap-2 mt-5">
-          <button @click="page--; fetchData()" :disabled="page <= 0" class="glass-btn-secondary px-4 py-2 rounded-lg text-sm disabled:opacity-40">上一页</button>
-          <span class="px-4 py-2 text-sm text-text-muted">第 {{ page + 1 }} / {{ totalPages }} 页</span>
-          <button @click="page++; fetchData()" :disabled="page >= totalPages - 1" class="glass-btn-secondary px-4 py-2 rounded-lg text-sm disabled:opacity-40">下一页</button>
-        </div>
-      
+    <div class="flex justify-end mb-3">
+      <button v-if="canCreate()" @click="openAdd" class="glass-btn px-4 py-2 rounded-lg flex items-center gap-2 text-sm">
+        <Plus class="w-4 h-4" /> 手工新增
+      </button>
+    </div>
+
+    <div class="glass rounded-2xl overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="glass-table min-w-[1600px]">
+          <thead>
+            <tr>
+              <th class="w-10 text-center">
+                <input
+                  type="checkbox"
+                  :checked="allSelected"
+                  @change="toggleSelectAll"
+                  class="accent-primary"
+                />
+              </th>
+              <th class="whitespace-nowrap text-xs">员工</th>
+              <th class="whitespace-nowrap text-xs">工资周期</th>
+              <th class="whitespace-nowrap text-xs">基本工资</th>
+              <th class="whitespace-nowrap text-xs">绩效奖金</th>
+              <th class="whitespace-nowrap text-xs">全勤奖</th>
+              <th class="whitespace-nowrap text-xs">加班工资</th>
+              <th class="whitespace-nowrap text-xs">其他奖金</th>
+              <th class="whitespace-nowrap text-xs">请假扣款</th>
+              <th class="whitespace-nowrap text-xs">考勤扣款</th>
+              <th class="whitespace-nowrap text-xs">其他罚款</th>
+              <th class="whitespace-nowrap text-xs">应发总额</th>
+              <th class="whitespace-nowrap text-xs">扣除总额</th>
+              <th class="whitespace-nowrap text-xs">实发工资</th>
+              <th class="whitespace-nowrap text-xs">状态</th>
+              <th class="whitespace-nowrap text-xs" style="text-align: center !important; width: 140px;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in displaySalaries" :key="row.salaryId">
+              <td class="text-center">
+                <input
+                  type="checkbox"
+                  :checked="selectedRowIds.has(row.salaryId)"
+                  @change="toggleRow(row.salaryId)"
+                  class="accent-primary"
+                />
+              </td>
+              <td class="font-medium whitespace-nowrap">{{ getEmployeeName(row.empId) }}</td>
+              <td class="whitespace-nowrap">{{ row.payPeriod }}</td>
+              <td class="whitespace-nowrap">¥{{ money(row.baseSnap) }}</td>
+              <td class="whitespace-nowrap">¥{{ money(row.performanceBonus) }}</td>
+              <td class="whitespace-nowrap">¥{{ money(row.fullAttendanceBonus) }}</td>
+              <td class="whitespace-nowrap">¥{{ money(row.overtimePay) }}</td>
+              <td class="whitespace-nowrap text-amber-700">¥{{ money(row.extraBonus) }}</td>
+              <td class="whitespace-nowrap">¥{{ money(row.leaveDeduction) }}</td>
+              <td class="whitespace-nowrap">¥{{ money(row.attendanceDeduction) }}</td>
+              <td class="whitespace-nowrap text-red-700">¥{{ money(row.extraDeduction) }}</td>
+              <td class="text-success whitespace-nowrap">+¥{{ money(row.grossTotal) }}</td>
+              <td class="text-danger whitespace-nowrap">-¥{{ money(row.deductTotal) }}</td>
+              <td class="font-bold text-primary whitespace-nowrap">¥{{ money(row.netPay) }}</td>
+              <td class="whitespace-nowrap">
+                <span class="px-2 py-0.5 rounded-md text-xs"
+                  :class="{
+                    'bg-amber-100 text-amber-700 font-semibold': row.status === 'GENERATED',
+                    'bg-teal-100 text-teal-700 font-semibold': row.status === 'APPROVED',
+                    'bg-emerald-100 text-emerald-700 font-semibold': row.status === 'PAID'
+                  }">
+                  {{ statusLabel(row.status) }}
+                </span>
+              </td>
+              <td style="text-align: center !important; width: 140px;">
+                <div class="flex items-center justify-center gap-1 flex-nowrap">
+                  <button v-if="canEdit() && row.status === 'GENERATED'" @click="handleApprove(row)" class="flex items-center justify-center w-7 h-7 rounded-lg hover:bg-primary/20 text-primary transition-colors" title="审核">
+                    <CheckCircle class="w-3.5 h-3.5" />
+                  </button>
+                  <button v-if="canEdit() && row.status === 'APPROVED'" @click="handlePay(row)" class="flex items-center justify-center w-7 h-7 rounded-lg hover:bg-success/20 text-success transition-colors" title="发放">
+                    <WalletCards class="w-3.5 h-3.5" />
+                  </button>
+                  <button v-if="canEdit() && row.status !== 'PAID'" @click="openEdit(row)" class="flex items-center justify-center w-7 h-7 rounded-lg hover:bg-primary/20 text-primary transition-colors" title="编辑">
+                    <Pencil class="w-3.5 h-3.5" />
+                  </button>
+                  <button v-if="canDelete() && row.status !== 'PAID'" @click="handleDelete(row)" class="flex items-center justify-center w-7 h-7 rounded-lg hover:bg-danger/20 text-danger transition-colors" title="删除">
+                    <Trash2 class="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="displaySalaries.length === 0">
+              <td colspan="16" class="text-center py-12 text-text-muted">暂无数据</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div v-if="!showSelectedOnly" class="flex justify-center gap-2 mt-5">
+      <button @click="page--; fetchData()" :disabled="page <= 0" class="glass-btn-secondary px-4 py-2 rounded-lg text-sm disabled:opacity-40">上一页</button>
+      <span class="px-4 py-2 text-sm text-text-muted">第 {{ page + 1 }} / {{ totalPages }} 页</span>
+      <button @click="page++; fetchData()" :disabled="page >= totalPages - 1" class="glass-btn-secondary px-4 py-2 rounded-lg text-sm disabled:opacity-40">下一页</button>
+    </div>
 
     <GlassModal :title="isEdit ? '编辑工资' : '新增工资'" :visible="showModal" @close="showModal = false">
       <div class="space-y-4">
@@ -465,7 +720,7 @@ onMounted(() => {
             <label class="text-sm text-text-muted mb-1 block">员工</label>
             <select v-model="form.empId" class="glass-input w-full px-4 py-2.5 rounded-xl text-sm">
               <option value="">请选择</option>
-              <option v-for="e in employees" :key="e.id" :value="e.id">{{ e.name }}</option>
+              <option v-for="e in employees" :key="e.empId" :value="e.empId">{{ e.empName }}</option>
             </select>
           </div>
           <div>
@@ -499,6 +754,44 @@ onMounted(() => {
       <template #footer>
         <button @click="showModal = false" class="glass-btn-secondary px-5 py-2 rounded-xl text-sm">取消</button>
         <button @click="handleSave" class="glass-btn px-5 py-2 rounded-xl text-sm">保存</button>
+      </template>
+    </GlassModal>
+
+    <GlassModal title="历史工资记录" :visible="showHistoryModal" @close="showHistoryModal = false" width="900px">
+      <div class="overflow-x-auto">
+        <table class="glass-table text-sm">
+          <thead>
+            <tr>
+              <th>工资周期</th>
+              <th>基本工资</th>
+              <th>应发总额</th>
+              <th>扣除总额</th>
+              <th>实发工资</th>
+              <th>状态</th>
+              <th>生成时间</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="historyLoading">
+              <td colspan="7" class="text-center py-8 text-text-muted">加载中...</td>
+            </tr>
+            <tr v-else-if="historyRows.length === 0">
+              <td colspan="7" class="text-center py-8 text-text-muted">暂无历史工资记录</td>
+            </tr>
+            <tr v-for="h in historyRows" :key="h.salaryId">
+              <td>{{ h.payPeriod }}</td>
+              <td>¥{{ money(h.baseSnap) }}</td>
+              <td class="text-success">+¥{{ money(h.grossTotal) }}</td>
+              <td class="text-danger">-¥{{ money(h.deductTotal) }}</td>
+              <td class="font-bold text-primary">¥{{ money(h.netPay) }}</td>
+              <td>{{ statusLabel(h.status) }}</td>
+              <td>{{ h.generatedAt ? new Date(h.generatedAt).toLocaleString('zh-CN') : '-' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <template #footer>
+        <button @click="showHistoryModal = false" class="glass-btn-secondary px-5 py-2 rounded-xl text-sm">关闭</button>
       </template>
     </GlassModal>
   </AdminLayout>

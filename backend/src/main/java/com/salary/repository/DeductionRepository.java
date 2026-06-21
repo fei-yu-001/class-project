@@ -13,4 +13,8 @@ public interface DeductionRepository extends JpaRepository<Deduction, Integer> {
 
     @Query(value = "SELECT d.* FROM deduction d JOIN sal_deduct_rel r ON d.deduct_id = r.deduct_id WHERE r.salary_id = :salaryId", nativeQuery = true)
     List<Deduction> findBySalaryId(@Param("salaryId") Integer salaryId);
+
+    List<Deduction> findByEmpIdAndPayPeriod(Integer empId, String payPeriod);
+
+    List<Deduction> findByEmpId(Integer empId);
 }

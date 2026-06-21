@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
+import ToastMessage from '@/components/ToastMessage.vue'
 import { getProfile, updateProfile, uploadAvatar, changePassword } from '@/api/user'
-import { Camera, User, Lock, Save, ChevronDown, ChevronUp, Shield, ShieldCheck } from 'lucide-vue-next'
+import { Camera, User, Lock, Save, Shield, ShieldCheck, Mail } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
@@ -11,10 +12,13 @@ const loading = ref(false)
 const avatarLoading = ref(false)
 const passwordError = ref('')
 const passwordSuccess = ref('')
+const toast = ref({ message: '', type: 'info' as 'success' | 'error' | 'info' })
+const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+  toast.value = { message, type }
+}
 
 const editForm = ref({ nickname: '', username: '' })
 const passwordForm = ref({ oldPassword: '', newPassword: '', confirmPassword: '' })
-const showPasswordSection = ref(false)
 
 const fetchProfile = async () => {
   try {
@@ -22,6 +26,10 @@ const fetchProfile = async () => {
     profile.value = res.data
     editForm.value.nickname = res.data.nickname || ''
     editForm.value.username = res.data.username || ''
+    if (auth.user && res.data.avatar) {
+      auth.user.avatar = res.data.avatar
+      localStorage.setItem('user', JSON.stringify(auth.user))
+    }
   } catch (e) {
     console.error(e)
   }
@@ -34,9 +42,13 @@ const handleAvatarChange = async (e: Event) => {
   try {
     const res: any = await uploadAvatar(file)
     profile.value.avatar = res.data
+    if (auth.user) {
+      auth.user.avatar = res.data
+      localStorage.setItem('user', JSON.stringify(auth.user))
+    }
     await fetchProfile()
   } catch (e: any) {
-    alert(e.message || '上传失败')
+    showToast(e.message || '上传失败', 'error')
   } finally {
     avatarLoading.value = false
   }
@@ -47,9 +59,18 @@ const handleSaveProfile = async () => {
   try {
     await updateProfile(editForm.value)
     await fetchProfile()
-    alert('保存成功')
+    if (auth.user) {
+      if (editForm.value.nickname) {
+        auth.user.nickname = editForm.value.nickname
+      }
+      if (editForm.value.username) {
+        auth.user.username = editForm.value.username
+      }
+      localStorage.setItem('user', JSON.stringify(auth.user))
+    }
+    showToast('保存成功', 'success')
   } catch (e: any) {
-    alert(e.message || '保存失败')
+    showToast(e.message || '保存失败', 'error')
   } finally {
     loading.value = false
   }
@@ -85,68 +106,78 @@ onMounted(fetchProfile)
 
 <template>
   <AdminLayout>
-      <div class="max-w-3xl">
+    <ToastMessage :message="toast.message" :type="toast.type" :duration="2600" />
+    <div class="max-w-5xl mx-auto">
+      <h1 class="text-2xl font-bold text-text-primary mb-6">个人中心</h1>
 
-
-        <div class="glass rounded-2xl p-8 mb-6">
-          <div class="flex flex-col items-center mb-8">
+      <!-- 顶部资料卡 -->
+      <div class="glass rounded-2xl overflow-hidden mb-6">
+        <div class="h-32 bg-gradient-to-r from-primary/40 to-accent/40"></div>
+        <div class="px-8 pb-8 -mt-16 relative">
+          <div class="flex flex-col items-center">
             <div class="relative group cursor-pointer" @click="($refs.avatarInput as HTMLInputElement).click()">
-              <div class="w-28 h-28 rounded-full overflow-hidden border-2 border-white/10"
-                :class="avatarLoading ? 'opacity-50' : ''">
-                <img
-                  v-if="profile.avatar"
-                  :src="profile.avatar"
-                  class="w-full h-full object-cover"
-                />
-                <div v-else class="w-full h-full bg-white/5 flex items-center justify-center">
-                  <User class="w-12 h-12 text-white/20" />
+              <div
+                class="w-32 h-32 rounded-full overflow-hidden border-4 border-white/80 shadow-lg"
+                :class="avatarLoading ? 'opacity-50' : ''"
+              >
+                <img v-if="profile.avatar" :src="profile.avatar" class="w-full h-full object-cover" />
+                <div v-else class="w-full h-full bg-white/80 flex items-center justify-center">
+                  <User class="w-14 h-14 text-text-muted/50" />
                 </div>
               </div>
               <div class="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <Camera class="w-6 h-6 text-white" />
+                <Camera class="w-7 h-7 text-white" />
               </div>
-              <input
-                ref="avatarInput"
-                type="file"
-                accept="image/*"
-                class="hidden"
-                @change="handleAvatarChange"
-              />
+              <input ref="avatarInput" type="file" accept="image/*" class="hidden" @change="handleAvatarChange" />
             </div>
-            <p class="text-sm text-text-muted mt-3">点击头像上传新图片</p>
 
-            <div class="mt-4 flex items-center gap-2">
+            <h2 class="text-xl font-bold text-text-primary mt-4">
+              {{ editForm.nickname || profile.username || '未设置昵称' }}
+            </h2>
+
+            <div class="mt-3 flex items-center gap-2">
               <span
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium"
-                :class="auth.isAdmin
-                  ? 'bg-amber-500/15 text-amber-600 border border-amber-500/25'
-                  : 'bg-blue-500/15 text-blue-600 border border-blue-500/25'"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border"
+                :class="auth.user?.role === 'ADMIN'
+                  ? 'bg-blue-500/15 text-blue-600 border-blue-500/25'
+                  : 'bg-gray-500/15 text-gray-600 border-gray-500/25'"
               >
                 <ShieldCheck v-if="auth.isAdmin" class="w-3.5 h-3.5" />
                 <Shield v-else class="w-3.5 h-3.5" />
-                {{ auth.isAdmin ? '管理员' : '普通用户' }}
+                {{ auth.roleLabel }}
               </span>
             </div>
           </div>
+        </div>
+      </div>
 
-          <div class="space-y-5">
+      <!-- 下方内容 -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- 基本信息 -->
+        <div class="lg:col-span-2 glass rounded-2xl p-6">
+          <h3 class="text-lg font-semibold text-text-primary mb-5 flex items-center gap-2">
+            <User class="w-5 h-5 text-accent" /> 基本信息
+          </h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
               <label class="text-sm text-text-muted mb-2 block">用户名</label>
-              <input
-                v-model="editForm.username"
-                class="glass-input w-full px-4 py-3 rounded-xl text-sm"
-                placeholder="用户名"
-              />
+              <div class="relative">
+                <Mail class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                <input
+                  v-model="editForm.username"
+                  class="glass-input w-full pl-9 pr-4 py-3 rounded-xl text-sm"
+                />
+              </div>
+              <p class="text-xs text-text-muted mt-1">用户名可用于登录</p>
             </div>
             <div>
               <label class="text-sm text-text-muted mb-2 block">昵称</label>
               <input
                 v-model="editForm.nickname"
                 class="glass-input w-full px-4 py-3 rounded-xl text-sm"
-                placeholder="昵称"
+                placeholder="请输入昵称"
               />
             </div>
-
           </div>
 
           <button
@@ -159,22 +190,12 @@ onMounted(fetchProfile)
           </button>
         </div>
 
-        <div class="glass rounded-2xl p-8">
-          <div class="flex items-center justify-between mb-6">
-            <div class="flex items-center gap-3">
-              <Lock class="w-5 h-5 text-accent" />
-              <h3 class="text-lg font-semibold">修改密码</h3>
-            </div>
-            <button
-              @click="showPasswordSection = !showPasswordSection"
-              class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-black/5 transition-colors"
-            >
-              <ChevronUp v-if="showPasswordSection" class="w-5 h-5 text-primary" />
-              <ChevronDown v-else class="w-5 h-5 text-primary" />
-            </button>
-          </div>
-
-          <div v-if="showPasswordSection" class="space-y-4">
+        <!-- 修改密码 -->
+        <div class="glass rounded-2xl p-6">
+          <h3 class="text-lg font-semibold text-text-primary mb-5 flex items-center gap-2">
+            <Lock class="w-5 h-5 text-accent" /> 修改密码
+          </h3>
+          <div class="space-y-4">
             <div>
               <label class="text-sm text-text-muted mb-2 block">原密码</label>
               <input
@@ -214,7 +235,7 @@ onMounted(fetchProfile)
             </button>
           </div>
         </div>
-      
       </div>
+    </div>
   </AdminLayout>
 </template>

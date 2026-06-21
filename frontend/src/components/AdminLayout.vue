@@ -6,10 +6,10 @@ import TopNav from '@/components/TopNav.vue'
 <template>
   <div class="relative min-h-screen overflow-hidden">
     <div
-      class="fixed inset-0 bg-cover bg-center bg-no-repeat"
+      class="fixed inset-0 bg-cover bg-center bg-no-repeat brightness-[0.72] saturate-[0.7]"
       style="background-image: url('/dashboard-bg.jpg');"
     />
-    <div class="fixed inset-0 bg-white/30 backdrop-blur-[2px]" />
+    <div class="fixed inset-0 bg-white/55 backdrop-blur-[1px]" />
     <SideBar />
     <TopNav />
     <div class="ml-56 pt-20 p-8 relative z-10">

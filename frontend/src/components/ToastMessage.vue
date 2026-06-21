@@ -48,19 +48,21 @@ const colorMap: Record<string, string> = {
 </script>
 
 <template>
-  <Transition name="toast">
-    <div
-      v-if="visible"
-      class="fixed top-6 right-6 z-[1000] px-5 py-3 rounded-2xl shadow-lg backdrop-blur-md flex items-center gap-3 min-w-[240px]"
-      :class="colorMap[type || 'info']"
-    >
-      <component :is="iconMap[type || 'info']" class="w-5 h-5 flex-shrink-0" />
-      <span class="text-sm flex-1">{{ message }}</span>
-      <button @click="close" class="flex-shrink-0 p-0.5 rounded-lg hover:bg-white/20 transition-colors">
-        <X class="w-4 h-4" />
-      </button>
-    </div>
-  </Transition>
+  <Teleport to="body">
+    <Transition name="toast">
+      <div
+        v-if="visible"
+        class="fixed top-20 right-6 z-[1000] px-5 py-3 rounded-2xl shadow-lg backdrop-blur-md flex items-center gap-3 min-w-[240px]"
+        :class="colorMap[type || 'info']"
+      >
+        <component :is="iconMap[type || 'info']" class="w-5 h-5 flex-shrink-0" />
+        <span class="text-sm flex-1">{{ message }}</span>
+        <button @click="close" class="flex-shrink-0 p-0.5 rounded-lg hover:bg-white/20 transition-colors">
+          <X class="w-4 h-4" />
+        </button>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>

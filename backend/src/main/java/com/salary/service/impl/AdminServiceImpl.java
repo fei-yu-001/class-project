@@ -17,9 +17,7 @@ public class AdminServiceImpl implements AdminService {
 
     @Override
     public List<User> listUsers() {
-        List<User> users = userRepository.findAll();
-        users.forEach(u -> u.setPassword(null));
-        return users;
+        return userRepository.findAll();
     }
 
     @Override
@@ -28,14 +26,12 @@ public class AdminServiceImpl implements AdminService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
 
-        if ("SUPER_ADMIN".equals(user.getRole())) {
-            throw new IllegalArgumentException("无法修改超级管理员的角色");
+        if ("ADMIN".equals(user.getRole())) {
+            throw new IllegalArgumentException("无法修改管理员自身角色");
         }
 
         user.setRole(role);
-        User saved = userRepository.save(user);
-        saved.setPassword(null);
-        return saved;
+        return userRepository.save(user);
     }
 
     @Override
@@ -44,13 +40,11 @@ public class AdminServiceImpl implements AdminService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
 
-        if ("SUPER_ADMIN".equals(user.getRole()) && !enabled) {
-            throw new IllegalArgumentException("无法禁用超级管理员");
+        if ("ADMIN".equals(user.getRole()) && !enabled) {
+            throw new IllegalArgumentException("无法禁用管理员自身");
         }
 
         user.setEnabled(enabled);
-        User saved = userRepository.save(user);
-        saved.setPassword(null);
-        return saved;
+        return userRepository.save(user);
     }
 }

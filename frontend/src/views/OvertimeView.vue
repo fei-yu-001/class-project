@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import GlassModal from '@/components/GlassModal.vue'
-import { Plus, Pencil, Trash2 } from 'lucide-vue-next'
+import ToastMessage from '@/components/ToastMessage.vue'
+import { Plus, Pencil, Trash2, Search } from 'lucide-vue-next'
 import {
   getAllOvertime,
   createOvertime,
@@ -20,6 +21,10 @@ const loading = ref(false)
 const showModal = ref(false)
 const editingItem = ref<any>(null)
 const employees = ref<any[]>([])
+const toast = ref({ message: '', type: 'info' as 'success' | 'error' | 'info' })
+const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+  toast.value = { message, type }
+}
 
 const defaultForm = () => ({
   empId: null as number | null,
@@ -28,14 +33,31 @@ const defaultForm = () => ({
   approvalStatus: 'APPROVED'
 })
 
+const approvalStatusOptions = [
+  { value: 'PENDING', label: '待审批' },
+  { value: 'APPROVED', label: '已通过' },
+  { value: 'REJECTED', label: '已驳回' }
+]
+
+const approvalStatusLabel = (status?: string) => {
+  return approvalStatusOptions.find(o => o.value === status)?.label || status || '-'
+}
+
 const form = ref(defaultForm())
+
+const search = ref({
+  empId: '',
+  otDate: '',
+  approvalStatus: ''
+})
 
 const fetchEmployees = async () => {
   try {
-    const res = await searchEmployees({})
-    employees.value = res.data || res
-  } catch {
+    const res = await searchEmployees({ page: 0, size: 1000 })
+    employees.value = res.data?.content || []
+  } catch (e: any) {
     employees.value = []
+    showToast(e.message || '获取员工列表失败', 'error')
   }
 }
 
@@ -43,13 +65,32 @@ const fetchData = async () => {
   loading.value = true
   try {
     const res = await getAllOvertime()
-    items.value = res.data || res
-  } catch {
+    items.value = res.data || []
+  } catch (e: any) {
     items.value = []
+    showToast(e.message || '获取加班记录失败', 'error')
   } finally {
     loading.value = false
   }
 }
+
+const filteredItems = computed(() => {
+  return items.value.filter((item: any) => {
+    if (search.value.empId && String(item.empId) !== search.value.empId) return false
+    if (search.value.otDate && item.otDate !== search.value.otDate) return false
+    if (search.value.approvalStatus && item.approvalStatus !== search.value.approvalStatus) return false
+    return true
+  })
+})
+
+const page = ref(0)
+const pageSize = ref(10)
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredItems.value.length / pageSize.value)))
+const pagedItems = computed(() => {
+  const start = page.value * pageSize.value
+  return filteredItems.value.slice(start, start + pageSize.value)
+})
+watch(search, () => { page.value = 0 }, { deep: true })
 
 const openAdd = () => {
   editingItem.value = null
@@ -78,8 +119,10 @@ const handleSubmit = async () => {
     }
     showModal.value = false
     fetchData()
-  } catch (e) {
+    showToast('保存成功', 'success')
+  } catch (e: any) {
     console.error('保存失败', e)
+    showToast(e.message || '保存失败', 'error')
   }
 }
 
@@ -88,14 +131,16 @@ const handleDelete = async (id: number) => {
   try {
     await deleteOvertime(id)
     fetchData()
-  } catch (e) {
+    showToast('删除成功', 'success')
+  } catch (e: any) {
     console.error('删除失败', e)
+    showToast(e.message || '删除失败', 'error')
   }
 }
 
 const getEmpName = (empId: number) => {
   const emp = employees.value.find((e: any) => e.empId === empId)
-  return emp ? emp.name : empId
+  return emp ? emp.empName : empId
 }
 
 onMounted(() => {
@@ -106,12 +151,41 @@ onMounted(() => {
 
 <template>
   <AdminLayout>
+    <ToastMessage :message="toast.message" :type="toast.type" :duration="2600" />
         <div class="flex justify-between items-center mb-6">
           <h1 class="text-2xl font-bold text-gray-800">加班记录</h1>
-          <button v-if="canCreate()" @click="openAdd" class="glass-btn-primary flex items-center gap-2 px-4 py-2 rounded-xl">
+        </div>
+
+        <div class="flex justify-end mb-3">
+          <button v-if="canCreate()" @click="openAdd" class="glass-btn-primary flex items-center gap-2 px-4 py-2 rounded-xl text-sm">
             <Plus class="w-4 h-4" /> 新增
           </button>
         </div>
+
+        <div class="glass rounded-2xl p-4 mb-5 flex flex-wrap items-end gap-3">
+          <div>
+            <label class="text-xs text-text-muted mb-1 block">员工</label>
+            <select v-model="search.empId" class="glass-input px-3 py-2 rounded-lg text-sm min-w-[140px]">
+              <option value="">全部</option>
+              <option v-for="emp in employees" :key="emp.empId" :value="String(emp.empId)">{{ emp.empName }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-text-muted mb-1 block">加班日期</label>
+            <input v-model="search.otDate" type="date" class="glass-input px-3 py-2 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label class="text-xs text-text-muted mb-1 block">审批状态</label>
+            <select v-model="search.approvalStatus" class="glass-input px-3 py-2 rounded-lg text-sm w-32">
+              <option value="">全部</option>
+              <option v-for="opt in approvalStatusOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+            </select>
+          </div>
+          <button @click="fetchData" class="glass-btn px-4 py-2 rounded-lg text-sm flex items-center gap-2">
+            <Search class="w-4 h-4" /> 检索
+          </button>
+        </div>
+
         <div class="glass rounded-2xl overflow-hidden">
           <table class="w-full">
             <thead>
@@ -127,14 +201,14 @@ onMounted(() => {
               <tr v-if="loading">
                 <td colspan="5" class="px-4 py-8 text-center text-gray-500">加载中...</td>
               </tr>
-              <tr v-else-if="items.length === 0">
+              <tr v-else-if="pagedItems.length === 0">
                 <td colspan="5" class="px-4 py-8 text-center text-gray-500">暂无数据</td>
               </tr>
-              <tr v-for="item in items" :key="item.otId" class="border-b border-black/5 hover:bg-white/20 transition-colors">
+              <tr v-for="item in pagedItems" :key="item.otId" class="border-b border-black/5 hover:bg-white/20 transition-colors">
                 <td class="px-4 py-3 text-sm text-gray-700">{{ getEmpName(item.empId) }}</td>
                 <td class="px-4 py-3 text-sm text-gray-700">{{ item.otDate }}</td>
                 <td class="px-4 py-3 text-sm text-gray-700">{{ item.otHours }} 小时</td>
-                <td class="px-4 py-3 text-sm text-gray-700">{{ item.approvalStatus }}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">{{ approvalStatusLabel(item.approvalStatus) }}</td>
                 <td class="px-4 py-3 text-center">
                   <div class="inline-flex items-center justify-center gap-1">
                     <button v-if="canEdit()" @click="openEdit(item)" class="flex items-center justify-center w-7 h-7 rounded-lg text-primary hover:bg-primary/10 transition-colors" title="编辑">
@@ -149,6 +223,12 @@ onMounted(() => {
             </tbody>
           </table>
         </div>
+
+        <div v-if="totalPages > 1" class="flex justify-center gap-2 mt-5">
+          <button @click="page--;" :disabled="page <= 0" class="glass-btn-secondary px-4 py-2 rounded-lg text-sm disabled:opacity-40">上一页</button>
+          <span class="px-4 py-2 text-sm text-text-muted">第 {{ page + 1 }} / {{ totalPages }} 页</span>
+          <button @click="page++;" :disabled="page >= totalPages - 1" class="glass-btn-secondary px-4 py-2 rounded-lg text-sm disabled:opacity-40">下一页</button>
+        </div>
       
 
     <GlassModal :visible="showModal" :title="editingItem ? '编辑加班' : '新增加班'" @close="showModal = false">
@@ -157,7 +237,7 @@ onMounted(() => {
           <label class="text-sm text-text-muted mb-1 block">员工</label>
           <select v-model.number="form.empId" class="glass-input w-full px-4 py-2.5 rounded-xl text-sm" required>
             <option :value="null" disabled>请选择员工</option>
-            <option v-for="emp in employees" :key="emp.empId" :value="emp.empId">{{ emp.name }}</option>
+            <option v-for="emp in employees" :key="emp.empId" :value="emp.empId">{{ emp.empName }}</option>
           </select>
         </div>
         <div>
@@ -171,9 +251,7 @@ onMounted(() => {
         <div>
           <label class="text-sm text-text-muted mb-1 block">审批状态</label>
           <select v-model="form.approvalStatus" class="glass-input w-full px-4 py-2.5 rounded-xl text-sm">
-            <option value="PENDING">PENDING</option>
-            <option value="APPROVED">APPROVED</option>
-            <option value="REJECTED">REJECTED</option>
+            <option v-for="opt in approvalStatusOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
           </select>
         </div>
         </div>

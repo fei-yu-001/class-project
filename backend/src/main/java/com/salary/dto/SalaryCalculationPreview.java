@@ -20,6 +20,8 @@ public class SalaryCalculationPreview {
     private BigDecimal performanceBonus;
     private BigDecimal fullAttendanceBonus;
     private BigDecimal overtimePay;
+    private BigDecimal extraBonus;
+    private BigDecimal extraDeduction;
     private BigDecimal attendanceDeduction;
     private BigDecimal leaveDeduction;
     private BigDecimal grossTotal;

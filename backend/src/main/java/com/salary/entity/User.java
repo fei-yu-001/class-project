@@ -1,5 +1,6 @@
 package com.salary.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -20,6 +21,7 @@ public class User {
     private String username;
 
     @Column(nullable = false, length = 255)
+    @JsonIgnore
     private String password;
 
     @Column(length = 50)
@@ -33,11 +35,11 @@ public class User {
 
     private Boolean enabled;
 
-    private static final java.util.Set<String> VALID_ROLES = java.util.Set.of("USER", "ADMIN", "SUPER_ADMIN");
+    private static final java.util.Set<String> VALID_ROLES = java.util.Set.of("USER", "ADMIN");
 
     public void setRole(String role) {
         if (role != null && !VALID_ROLES.contains(role)) {
-            throw new IllegalArgumentException("无效的角色: " + role + "，允许的角色: USER, ADMIN, SUPER_ADMIN");
+            throw new IllegalArgumentException("无效的角色: " + role + "，允许的角色: USER, ADMIN");
         }
         this.role = role;
     }

@@ -19,19 +19,19 @@ public class PaymentMethodController {
     private final PaymentMethodService paymentMethodService;
 
     @PostMapping
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<PaymentMethod> create(@Valid @RequestBody PaymentMethodRequest request) {
         return Result.success(paymentMethodService.create(request));
     }
 
     @PutMapping("/{empId}")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<PaymentMethod> update(@PathVariable Integer empId, @Valid @RequestBody PaymentMethodRequest request) {
         return Result.success(paymentMethodService.update(empId, request));
     }
 
     @DeleteMapping("/{empId}")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Void> delete(@PathVariable Integer empId) {
         paymentMethodService.delete(empId);
         return Result.success();

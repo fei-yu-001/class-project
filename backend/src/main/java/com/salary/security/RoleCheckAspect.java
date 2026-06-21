@@ -19,6 +19,13 @@ public class RoleCheckAspect {
             return Result.error(401, "未认证");
         }
 
+        boolean isSuperAdmin = authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch("ROLE_SUPER_ADMIN"::equals);
+        if (isSuperAdmin) {
+            return joinPoint.proceed();
+        }
+
         for (String allowedRole : requireRole.value()) {
             String requiredAuthority = "ROLE_" + allowedRole;
             boolean allowed = authentication.getAuthorities().stream()

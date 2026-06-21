@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import GlassModal from '@/components/GlassModal.vue'
+import ToastMessage from '@/components/ToastMessage.vue'
 import { listPositions, createPosition, updatePosition, deletePosition } from '@/api/position'
 import { listDepartments } from '@/api/department'
 import { usePermission } from '@/composables/usePermission'
-import { Plus, Pencil, Trash2, Briefcase } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, Briefcase, Search } from 'lucide-vue-next'
 
 const { canCreate, canEdit, canDelete } = usePermission()
 
@@ -14,7 +15,26 @@ const departments = ref<any[]>([])
 const showModal = ref(false)
 const isEdit = ref(false)
 const editPosId = ref<string | null>(null)
+const toast = ref({ message: '', type: 'info' as 'success' | 'error' | 'info' })
+const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+  toast.value = { message, type }
+}
 const form = ref({ posId: '', posName: '', baseSalary: 0, deptCode: '' })
+
+const search = ref({
+  posId: '',
+  posName: '',
+  deptCode: ''
+})
+
+const filteredPositions = computed(() => {
+  return positions.value.filter((row: any) => {
+    if (search.value.posId && !(row.posId || '').toLowerCase().includes(search.value.posId.toLowerCase())) return false
+    if (search.value.posName && !(row.posName || '').toLowerCase().includes(search.value.posName.toLowerCase())) return false
+    if (search.value.deptCode && row.deptCode !== search.value.deptCode) return false
+    return true
+  })
+})
 
 const fetchData = async () => {
   try {
@@ -64,8 +84,9 @@ const handleSave = async () => {
     }
     showModal.value = false
     fetchData()
+    showToast(isEdit.value ? '更新成功' : '新增成功', 'success')
   } catch (e: any) {
-    alert(e.message || '操作失败')
+    showToast(e.message || '操作失败', 'error')
   }
 }
 
@@ -74,8 +95,9 @@ const handleDelete = async (posId: string) => {
   try {
     await deletePosition(posId)
     fetchData()
+    showToast('删除成功', 'success')
   } catch (e: any) {
-    alert(e.message || '删除失败')
+    showToast(e.message || '删除失败', 'error')
   }
 }
 
@@ -84,10 +106,26 @@ onMounted(fetchData)
 
 <template>
   <AdminLayout>
-        <div class="flex items-center justify-between mb-8">
-          <div></div>
+    <ToastMessage :message="toast.message" :type="toast.type" :duration="2600" />
+        <div class="flex items-center justify-between mb-6">
+          <h1 class="text-xl font-bold text-text-primary">职位管理</h1>
+        </div>
+
+        <div class="flex justify-end mb-3">
           <button v-if="canCreate()" @click="openAdd" class="glass-btn px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm">
             <Plus class="w-4 h-4" /> 新增职位
+          </button>
+        </div>
+
+        <div class="glass rounded-2xl p-4 mb-5 flex flex-wrap items-center gap-3">
+          <input v-model="search.posId" placeholder="职位编号" class="glass-input px-3 py-2 rounded-lg text-sm w-32" />
+          <input v-model="search.posName" placeholder="职位名称" class="glass-input px-3 py-2 rounded-lg text-sm w-44" />
+          <select v-model="search.deptCode" class="glass-input px-3 py-2 rounded-lg text-sm w-40">
+            <option value="">全部部门</option>
+            <option v-for="d in departments" :key="d.deptCode" :value="d.deptCode">{{ d.deptName }}</option>
+          </select>
+          <button @click="fetchData" class="glass-btn px-4 py-2 rounded-lg text-sm flex items-center gap-2">
+            <Search class="w-4 h-4" /> 检索
           </button>
         </div>
 
@@ -103,12 +141,12 @@ onMounted(fetchData)
               </tr>
             </thead>
             <tbody>
-              <tr v-for="row in positions" :key="row.posId">
+              <tr v-for="row in filteredPositions" :key="row.posId">
                 <td class="font-medium">{{ row.posId }}</td>
                 <td class="font-medium">{{ row.posName }}</td>
                 <td class="text-primary font-medium">¥{{ row.baseSalary?.toFixed(2) }}</td>
                 <td>
-                  <span class="px-2 py-0.5 rounded-md text-xs bg-primary/20 text-primary">
+                  <span class="px-2 py-0.5 rounded-md text-xs font-semibold bg-teal-100 text-teal-700">
                     {{ getDeptName(row.deptCode) }}
                   </span>
                 </td>
@@ -123,7 +161,7 @@ onMounted(fetchData)
                   </div>
                 </td>
               </tr>
-              <tr v-if="positions.length === 0">
+              <tr v-if="filteredPositions.length === 0">
                 <td colspan="5" class="text-center py-12 text-text-muted">暂无数据</td>
               </tr>
             </tbody>

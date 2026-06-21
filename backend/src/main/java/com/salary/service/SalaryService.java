@@ -11,6 +11,8 @@ import java.util.List;
 
 public interface SalaryService {
 
+    List<Salary> getByEmployee(Integer empId);
+
     Salary create(SalaryRequest request);
 
     Salary update(Integer salaryId, SalaryRequest request);

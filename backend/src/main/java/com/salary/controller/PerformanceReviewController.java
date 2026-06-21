@@ -24,14 +24,14 @@ public class PerformanceReviewController {
     public Result<List<PerformanceReview>> getByEmployee(@PathVariable Integer empId) { return Result.success(performanceReviewService.getReviewsByEmployee(empId)); }
 
     @PostMapping
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<PerformanceReview> create(@RequestBody PerformanceReview review) { return Result.success(performanceReviewService.createReview(review)); }
 
     @PutMapping("/{id}")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<PerformanceReview> update(@PathVariable Integer id, @RequestBody PerformanceReview review) { return Result.success(performanceReviewService.updateReview(id, review)); }
 
     @DeleteMapping("/{id}")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Void> delete(@PathVariable Integer id) { performanceReviewService.deleteReview(id); return Result.success(); }
 }

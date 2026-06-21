@@ -22,19 +22,19 @@ public class PositionController {
     private final PositionService positionService;
 
     @PostMapping
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Position> create(@Valid @RequestBody PositionRequest request) {
         return Result.success(positionService.create(request));
     }
 
     @PutMapping("/{posId}")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Position> update(@PathVariable String posId, @Valid @RequestBody PositionRequest request) {
         return Result.success(positionService.update(posId, request));
     }
 
     @DeleteMapping("/{posId}")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Void> delete(@PathVariable String posId) {
         positionService.delete(posId);
         return Result.success();

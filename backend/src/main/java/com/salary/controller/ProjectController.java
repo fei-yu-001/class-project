@@ -21,14 +21,14 @@ public class ProjectController {
     public Result<Project> getById(@PathVariable Integer id) { return Result.success(projectService.getProjectById(id)); }
 
     @PostMapping
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Project> create(@RequestBody Project project) { return Result.success(projectService.createProject(project)); }
 
     @PutMapping("/{id}")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Project> update(@PathVariable Integer id, @RequestBody Project project) { return Result.success(projectService.updateProject(id, project)); }
 
     @DeleteMapping("/{id}")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Void> delete(@PathVariable Integer id) { projectService.deleteProject(id); return Result.success(); }
 }

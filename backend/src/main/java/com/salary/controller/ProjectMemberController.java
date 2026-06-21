@@ -35,21 +35,21 @@ public class ProjectMemberController {
 
     /** 新增项目成员 */
     @PostMapping
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<ProjectMember> add(@RequestBody ProjectMember member) {
         return Result.success(service.addMember(member));
     }
 
     /** 更新单个项目成员 */
     @PutMapping
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<ProjectMember> update(@RequestBody ProjectMember member) {
         return Result.success(service.updateMember(member));
     }
 
     /** 删除项目成员 */
     @DeleteMapping("/{empId}/{projId}")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<Void> delete(@PathVariable Integer empId, @PathVariable Integer projId) {
         service.deleteMember(empId, projId);
         return Result.success(null);
@@ -60,7 +60,7 @@ public class ProjectMemberController {
      * 校验所有成员 contrib_coeff 总和 = 1.00
      */
     @PostMapping("/batch")
-    @RequireRole({"ADMIN", "SUPER_ADMIN"})
+    @RequireRole("ADMIN")
     public Result<List<ProjectMember>> replaceMembers(@Valid @RequestBody ProjectMembersBatchRequest request) {
         return Result.success(service.replaceMembers(request));
     }

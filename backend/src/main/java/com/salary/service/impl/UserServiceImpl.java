@@ -50,9 +50,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public User getProfile() {
-        User user = getCurrentUser();
-        user.setPassword(null);
-        return user;
+        return getCurrentUser();
     }
 
     @Override
@@ -64,9 +62,7 @@ public class UserServiceImpl implements UserService {
         if (user.getUsername() != null) {
             existing.setUsername(user.getUsername());
         }
-        User saved = userRepository.save(existing);
-        saved.setPassword(null);
-        return saved;
+        return userRepository.save(existing);
     }
 
     @Override

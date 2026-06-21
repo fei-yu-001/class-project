@@ -4,8 +4,8 @@ import { useAuthStore } from '@/stores/auth'
 import {
   LayoutDashboard, Users, DollarSign, Building2,
   Briefcase, CreditCard, ChevronLeft, ChevronRight,
-  UserCircle, Settings, Info, FolderKanban, ClipboardCheck,
-  CalendarCheck, FileText, Clock, ArrowRightLeft, Crown, Database
+  UserCircle, Settings, ShieldCheck, UserCog, FolderKanban, ClipboardCheck,
+  CalendarCheck, FileText, Clock, ArrowRightLeft
 } from 'lucide-vue-next'
 import { ref, computed } from 'vue'
 
@@ -14,31 +14,34 @@ const auth = useAuthStore()
 const collapsed = ref(false)
 
 const menuItems = [
-  { path: '/dashboard', label: '仪表盘', icon: LayoutDashboard, roles: ['USER', 'ADMIN', 'SUPER_ADMIN'] },
-  { path: '/employees', label: '员工管理', icon: Users, roles: ['ADMIN', 'SUPER_ADMIN'] },
-  { path: '/salaries', label: '工资管理', icon: DollarSign, roles: ['ADMIN', 'SUPER_ADMIN'] },
-  { path: '/departments', label: '部门管理', icon: Building2, roles: ['ADMIN', 'SUPER_ADMIN'] },
-  { path: '/positions', label: '职位管理', icon: Briefcase, roles: ['ADMIN', 'SUPER_ADMIN'] },
-  { path: '/payment-methods', label: '支付方式', icon: CreditCard, roles: ['ADMIN', 'SUPER_ADMIN'] },
+  { path: '/dashboard', label: '仪表盘', icon: LayoutDashboard, roles: ['USER', 'ADMIN'] },
+  { path: '/employees', label: '员工管理', icon: Users, roles: ['ADMIN'] },
+  { path: '/salaries', label: '工资管理', icon: DollarSign, roles: ['ADMIN'] },
+  { path: '/departments', label: '部门管理', icon: Building2, roles: ['ADMIN'] },
+  { path: '/positions', label: '职位管理', icon: Briefcase, roles: ['ADMIN'] },
+  { path: '/payment-methods', label: '支付方式', icon: CreditCard, roles: ['ADMIN'] },
 ]
 
 const hrItems = [
-  { path: '/projects', label: '项目管理', icon: FolderKanban, roles: ['ADMIN', 'SUPER_ADMIN'] },
-  { path: '/performance', label: '绩效考核', icon: ClipboardCheck, roles: ['ADMIN', 'SUPER_ADMIN'] },
-  { path: '/attendance', label: '考勤管理', icon: CalendarCheck, roles: ['ADMIN', 'SUPER_ADMIN'] },
-  { path: '/leaves', label: '请假申请', icon: FileText, roles: ['ADMIN', 'SUPER_ADMIN'] },
-  { path: '/overtime', label: '加班记录', icon: Clock, roles: ['ADMIN', 'SUPER_ADMIN'] },
-  { path: '/position-changes', label: '职位变动', icon: ArrowRightLeft, roles: ['ADMIN', 'SUPER_ADMIN'] },
-  { path: '/schema', label: '数据库 Schema', icon: Database, roles: ['ADMIN', 'SUPER_ADMIN'] },
+  { path: '/projects', label: '项目管理', icon: FolderKanban, roles: ['ADMIN'] },
+  { path: '/performance', label: '绩效考核', icon: ClipboardCheck, roles: ['ADMIN'] },
+  { path: '/attendance', label: '考勤管理', icon: CalendarCheck, roles: ['ADMIN'] },
+  { path: '/leaves', label: '请假申请', icon: FileText, roles: ['ADMIN'] },
+  { path: '/overtime', label: '加班记录', icon: Clock, roles: ['ADMIN'] },
+  { path: '/position-changes', label: '职位变动', icon: ArrowRightLeft, roles: ['ADMIN'] },
 ]
 
 const systemItems = [
-  { path: '/profile', label: '个人中心', icon: UserCircle, roles: ['USER', 'ADMIN', 'SUPER_ADMIN'] },
-  { path: '/settings', label: '设置', icon: Settings, roles: ['USER', 'ADMIN', 'SUPER_ADMIN'] },
-  { path: '/system', label: '系统中心', icon: Info, roles: ['SUPER_ADMIN'] },
+  { path: '/profile', label: '个人中心', icon: UserCircle, roles: ['USER', 'ADMIN'] },
+  { path: '/settings', label: '设置', icon: Settings, roles: ['USER', 'ADMIN'] },
+  { path: '/user-permissions', label: '用户权限管理', icon: ShieldCheck, roles: ['ADMIN'] },
+  { path: '/employee-comprehensive', label: '员工综合管理', icon: UserCog, roles: ['ADMIN'] },
 ]
 
-const currentRole = computed(() => auth.user?.role || 'USER')
+const currentRole = computed(() => {
+  const role = auth.user?.role
+  return role === 'USER' || role === 'ADMIN' ? role : 'USER'
+})
 
 const filteredMenuItems = computed(() => menuItems.filter(item => item.roles.includes(currentRole.value)))
 const filteredHrItems = computed(() => hrItems.filter(item => item.roles.includes(currentRole.value)))
@@ -124,7 +127,6 @@ const isActive = (path: string) => route.path === path
       >
         <component :is="item.icon" class="w-5 h-5 shrink-0" />
         <span v-if="!collapsed" class="text-sm font-medium">{{ item.label }}</span>
-        <Crown v-if="item.path === '/system' && !collapsed" class="w-3 h-3 text-amber-500" />
       </router-link>
     </nav>
   </aside>
