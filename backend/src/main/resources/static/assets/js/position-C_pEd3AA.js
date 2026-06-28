@@ -1,1 +1,0 @@
-import{r as s}from"./index-Bgx0w-_e.js";const e=()=>s.get("/positions/list"),n=t=>s.post("/positions",t),r=(t,o)=>s.put(`/positions/${t}`,o),p=t=>s.delete(`/positions/${t}`);export{n as c,p as d,e as l,r as u};

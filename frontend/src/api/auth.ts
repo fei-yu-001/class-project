@@ -7,3 +7,7 @@ export const login = (data: { username: string; password: string }) => {
 export const register = (data: { username: string; password: string; nickname?: string }) => {
   return request.post('/auth/register', data)
 }
+
+export const logout = () => {
+  return request.post('/auth/logout')
+}

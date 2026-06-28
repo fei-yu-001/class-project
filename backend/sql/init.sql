@@ -6,7 +6,7 @@ DROP VIEW IF EXISTS v_emp_full, v_sal_detail, v_emp_perf_att, v_emp_project, v_e
 DROP TABLE IF EXISTS sal_deduct_rel, sal_bonus_rel, deduction, bonus, salary_record;
 DROP TABLE IF EXISTS pos_change, overtime, leave_req, attendance, performance;
 DROP TABLE IF EXISTS project_member, project, payment_method, users, employee, `position`, department;
-DROP TABLE IF EXISTS sys_config, audit_log, leave_balance;
+DROP TABLE IF EXISTS sys_config, audit_log, leave_balance, announcement;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- 1. users
@@ -145,6 +145,9 @@ CREATE TABLE overtime(
 CREATE TABLE pos_change(
        change_id INT NOT NULL AUTO_INCREMENT COMMENT 'change_id',
        emp_id INT NOT NULL COMMENT 'emp_id',
+       old_pos_id VARCHAR(10) DEFAULT NULL COMMENT 'old_pos_id',
+       new_pos_id VARCHAR(10) DEFAULT NULL COMMENT 'new_pos_id',
+       change_date DATE DEFAULT NULL COMMENT 'change_date',
        change_reason VARCHAR(100) DEFAULT NULL COMMENT 'change_reason',
        PRIMARY KEY(change_id),
        FOREIGN KEY(emp_id) REFERENCES employee(emp_id) ON DELETE CASCADE ON UPDATE CASCADE
@@ -413,6 +416,17 @@ INSERT INTO sys_config (config_key, config_value, description) VALUES
 ('insurance_housing_rate', '0.12', '住房公积金个人缴纳比例'),
 ('tax_threshold', '5000', '个税起征点（元/月）');
 
+-- 公告表
+CREATE TABLE announcement(
+    announce_id INT NOT NULL AUTO_INCREMENT COMMENT '公告ID',
+    title VARCHAR(200) NOT NULL COMMENT '标题',
+    content TEXT NOT NULL COMMENT '内容',
+    publisher VARCHAR(50) DEFAULT NULL COMMENT '发布者',
+    is_top BOOLEAN NOT NULL DEFAULT FALSE COMMENT '是否置顶',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY(announce_id)
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='公告表';
+
 -- 审计日志表
 CREATE TABLE audit_log(
     log_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '日志ID',
@@ -426,6 +440,9 @@ CREATE TABLE audit_log(
     PRIMARY KEY(log_id),
     INDEX idx_audit_created(created_at)
 )ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审计日志表';
+
+CREATE INDEX idx_audit_user ON audit_log(user_id);
+CREATE INDEX idx_audit_entity ON audit_log(entity_type, entity_id);
 
 -- 假期余额表
 CREATE TABLE leave_balance(

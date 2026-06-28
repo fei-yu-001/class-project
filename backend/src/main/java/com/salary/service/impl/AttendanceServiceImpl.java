@@ -113,12 +113,14 @@ public class AttendanceServiceImpl implements AttendanceService {
         LeaveRequest existing = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("记录不存在"));
         validateEmployee(request.getEmpId());
+        if (!"PENDING".equals(existing.getApprovalStatus())) {
+            throw new IllegalArgumentException("只有待审批的请假可以编辑");
+        }
         existing.setEmpId(request.getEmpId());
         existing.setLeaveType(request.getLeaveType());
         existing.setStartDate(request.getStartDate());
         existing.setEndDate(request.getEndDate());
         existing.setLeaveDays(request.getLeaveDays());
-        existing.setApprovalStatus(request.getApprovalStatus());
         if (request.getLeaveDays() != null && request.getLeaveDays().compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("请假天数必须大于0");
         }
@@ -134,8 +136,9 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .orElseThrow(() -> new IllegalArgumentException("请假记录不存在"));
         // 如果已审批通过，需要恢复假期余额
         if ("APPROVED".equals(leave.getApprovalStatus())) {
+            int leaveYear = leave.getStartDate() != null ? leave.getStartDate().getYear() : Year.now().getValue();
             leaveBalanceRepository.findByEmpIdAndLeaveTypeAndYear(
-                    leave.getEmpId(), leave.getLeaveType(), Year.now().getValue())
+                    leave.getEmpId(), leave.getLeaveType(), leaveYear)
                 .ifPresent(balance -> {
                     BigDecimal days = leave.getLeaveDays() != null ? leave.getLeaveDays() : BigDecimal.ONE;
                     balance.setUsedDays(balance.getUsedDays().subtract(days).max(BigDecimal.ZERO));
@@ -170,10 +173,12 @@ public class AttendanceServiceImpl implements AttendanceService {
         OvertimeRecord existing = overtimeRecordRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("记录不存在"));
         validateEmployee(record.getEmpId());
+        if (!"PENDING".equals(existing.getApprovalStatus())) {
+            throw new IllegalArgumentException("只有待审批的加班可以编辑");
+        }
         existing.setEmpId(record.getEmpId());
         existing.setOtHours(record.getOtHours());
         existing.setOtDate(record.getOtDate());
-        existing.setApprovalStatus(record.getApprovalStatus());
         OvertimeRecord saved = overtimeRecordRepository.save(existing);
         evictDashboardCache();
         return saved;
@@ -195,8 +200,9 @@ public class AttendanceServiceImpl implements AttendanceService {
             throw new IllegalArgumentException("只有待审批的请假可以审核通过");
         }
         // Check and deduct leave balance
+        int leaveYear = leave.getStartDate() != null ? leave.getStartDate().getYear() : Year.now().getValue();
         var balanceOpt = leaveBalanceRepository.findByEmpIdAndLeaveTypeAndYear(
-                leave.getEmpId(), leave.getLeaveType(), Year.now().getValue());
+                leave.getEmpId(), leave.getLeaveType(), leaveYear);
         if (balanceOpt.isPresent()) {
             var balance = balanceOpt.get();
             BigDecimal remaining = balance.getTotalDays().subtract(balance.getUsedDays());

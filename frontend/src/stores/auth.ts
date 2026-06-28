@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { logout as apiLogout } from '@/api/auth'
 
 export interface UserInfo {
   token: string
@@ -44,7 +45,12 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('token', data.token)
   }
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await apiLogout()
+    } catch (e) {
+      // Ignore errors - still clear local state
+    }
     user.value = null
     localStorage.removeItem('user')
     localStorage.removeItem('token')
