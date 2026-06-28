@@ -153,17 +153,20 @@ const gradeColor = (grade?: string) => {
   return map[grade.toUpperCase()] || '#999'
 }
 
+const handleResize = () => {
+  pieChart?.resize()
+  lineChart?.resize()
+  gradeChart?.resize()
+}
+
 onMounted(async () => {
   await fetchStats()
   setTimeout(initCharts, 100)
-  window.addEventListener('resize', () => {
-    pieChart?.resize()
-    lineChart?.resize()
-    gradeChart?.resize()
-  })
+  window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
   pieChart?.dispose()
   lineChart?.dispose()
   gradeChart?.dispose()

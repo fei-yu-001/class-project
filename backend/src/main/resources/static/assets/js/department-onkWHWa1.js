@@ -1,1 +1,0 @@
-import{r as e}from"./index-DSCjm4ak.js";const n=()=>e.get("/departments/list"),a=t=>e.post("/departments",t),p=(t,r)=>e.put(`/departments/${t}`,r),m=t=>e.delete(`/departments/${t}`);export{a as c,m as d,n as l,p as u};

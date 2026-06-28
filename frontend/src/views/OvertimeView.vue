@@ -255,10 +255,10 @@ onMounted(() => {
                     <button v-if="canEdit() && item.approvalStatus === 'PENDING'" @click="handleReject(item)" class="flex items-center justify-center w-7 h-7 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors" title="驳回">
                       <XCircle class="w-3.5 h-3.5" />
                     </button>
-                    <button v-if="canEdit()" @click="openEdit(item)" class="flex items-center justify-center w-7 h-7 rounded-lg text-primary hover:bg-primary/10 transition-colors" title="编辑">
+                    <button v-if="canEdit() && item.approvalStatus === 'PENDING'" @click="openEdit(item)" class="flex items-center justify-center w-7 h-7 rounded-lg text-primary hover:bg-primary/10 transition-colors" title="编辑">
                       <Pencil class="w-3.5 h-3.5" />
                     </button>
-                    <button v-if="canDelete()" @click="handleDelete(item.otId)" class="flex items-center justify-center w-7 h-7 rounded-lg text-danger hover:bg-danger/10 transition-colors" title="删除">
+                    <button v-if="canDelete() && item.approvalStatus !== 'APPROVED'" @click="handleDelete(item.otId)" class="flex items-center justify-center w-7 h-7 rounded-lg text-danger hover:bg-danger/10 transition-colors" title="删除">
                       <Trash2 class="w-3.5 h-3.5" />
                     </button>
                   </div>

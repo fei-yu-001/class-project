@@ -3,6 +3,9 @@ import { ref, onMounted } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import ToastMessage from '@/components/ToastMessage.vue'
 import { getAuditLogs } from '@/api/auditLog'
+import { usePermission } from '@/composables/usePermission'
+
+const { isAdmin } = usePermission()
 
 const logs = ref<any[]>([])
 const loading = ref(false)

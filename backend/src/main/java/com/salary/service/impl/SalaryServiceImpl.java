@@ -193,11 +193,9 @@ public class SalaryServiceImpl implements SalaryService {
             if ("PAID".equals(salary.getStatus())) {
                 throw new IllegalArgumentException("已发放工资不能重新生成");
             }
-            if (!"GENERATED".equals(salary.getStatus()) && !overwriteUnpaid) {
-                return Optional.empty();
-            }
             if (!overwriteUnpaid) {
-                return Optional.empty();
+                // Return existing record as-is without recalculating
+                return Optional.of(salary);
             }
             SalaryCalculationPreview preview = calculate(employee, payPeriod, yearMonth);
             applyPreview(salary, preview);
@@ -411,9 +409,16 @@ public class SalaryServiceImpl implements SalaryService {
     }
 
     private String getConfig(String key, String defaultValue) {
-        return sysConfigRepository.findByConfigKey(key)
-                .map(config -> config.getConfigValue())
-                .orElse(defaultValue);
+        try {
+            return sysConfigRepository.findByConfigKey(key)
+                    .map(config -> config.getConfigValue())
+                    .filter(v -> {
+                        try { new BigDecimal(v); return true; } catch (NumberFormatException e) { return false; }
+                    })
+                    .orElse(defaultValue);
+        } catch (Exception e) {
+            return defaultValue;
+        }
     }
 
     private boolean isLate(Attendance attendance) {

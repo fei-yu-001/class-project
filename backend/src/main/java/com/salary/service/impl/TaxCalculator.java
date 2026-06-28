@@ -82,7 +82,38 @@ public class TaxCalculator {
                 .subtract(monthlyInsurance)
                 .subtract(threshold)
                 .max(BigDecimal.ZERO);
-        return calculateCumulativeTax(taxableIncome).setScale(2, RoundingMode.HALF_UP);
+        // Use monthly brackets (annual / 12)
+        return calculateMonthlyBrackets(taxableIncome).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal calculateMonthlyBrackets(BigDecimal monthlyTaxable) {
+        if (monthlyTaxable.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+        // Monthly thresholds: annual / 12
+        BigDecimal[] monthlyBrackets = {
+            new BigDecimal("3000"),    // 36000/12
+            new BigDecimal("12000"),   // 144000/12
+            new BigDecimal("25000"),   // 300000/12
+            new BigDecimal("35000"),   // 420000/12
+            new BigDecimal("55000"),   // 660000/12
+            new BigDecimal("80000")    // 960000/12
+        };
+        BigDecimal[] monthlyQuickDeductions = {
+            BigDecimal.ZERO,
+            new BigDecimal("210"),     // 2520/12
+            new BigDecimal("1410"),    // 16920/12
+            new BigDecimal("2660"),    // 31920/12
+            new BigDecimal("4410"),    // 52920/12
+            new BigDecimal("7160"),    // 85920/12
+            new BigDecimal("15160")    // 181920/12
+        };
+        for (int i = 0; i < monthlyBrackets.length; i++) {
+            if (monthlyTaxable.compareTo(monthlyBrackets[i]) <= 0) {
+                return monthlyTaxable.multiply(RATES[i]).subtract(monthlyQuickDeductions[i]);
+            }
+        }
+        return monthlyTaxable.multiply(RATES[6]).subtract(monthlyQuickDeductions[6]);
     }
 
     private BigDecimal calculateCumulativeTax(BigDecimal taxableIncome) {
@@ -100,8 +131,12 @@ public class TaxCalculator {
     }
 
     private BigDecimal getThreshold() {
-        return sysConfigRepository.findByConfigKey("tax_threshold")
-                .map(c -> new BigDecimal(c.getConfigValue()))
-                .orElse(new BigDecimal("5000"));
+        try {
+            return sysConfigRepository.findByConfigKey("tax_threshold")
+                    .map(c -> new BigDecimal(c.getConfigValue()))
+                    .orElse(new BigDecimal("5000"));
+        } catch (NumberFormatException e) {
+            return new BigDecimal("5000");
+        }
     }
 }

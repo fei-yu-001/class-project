@@ -1,49 +1,58 @@
 package com.salary.security;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletRequestWrapper;
+import lombok.RequiredArgsConstructor;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 
+/**
+ * XSS 防护过滤器
+ *
+ * - JSON 请求体: 使用 Jackson 解析后对所有字符串值做 HTML 转义，再重新序列化
+ * - 查询参数: 对 parameter 值做 XSS 消毒
+ * - 跳过 multipart/form-data 和非文本请求（防止破坏文件上传）
+ * - 不修改 Header（Authorization 等 header 被编码会破坏认证）
+ */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
+@RequiredArgsConstructor
 public class XssFilter implements Filter {
+
+    private final ObjectMapper objectMapper;
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
-        XssHttpServletRequestWrapper wrappedRequest = new XssHttpServletRequestWrapper((HttpServletRequest) request);
-        chain.doFilter(wrappedRequest, response);
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+
+        // 只处理 JSON 请求体，跳过 multipart 和其他非文本类型
+        String contentType = httpRequest.getContentType();
+        boolean isJson = contentType != null && contentType.contains(MediaType.APPLICATION_JSON_VALUE);
+
+        if (isJson) {
+            chain.doFilter(new JsonSanitizingWrapper(httpRequest, objectMapper), response);
+        } else {
+            chain.doFilter(new ParameterSanitizingWrapper(httpRequest), response);
+        }
     }
 
-    private static class XssHttpServletRequestWrapper extends HttpServletRequestWrapper {
-
-        private byte[] cachedBody;
-
-        public XssHttpServletRequestWrapper(HttpServletRequest request) throws IOException {
-            super(request);
-            InputStream inputStream = request.getInputStream();
-            this.cachedBody = inputStream.readAllBytes();
-        }
-
-        @Override
-        public ServletInputStream getInputStream() throws IOException {
-            String body = new String(cachedBody, "UTF-8");
-            String sanitized = sanitizeJsonValues(body);
-            ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(sanitized.getBytes("UTF-8"));
-            return new DelegatingServletInputStream(byteArrayInputStream);
-        }
-
-        @Override
-        public BufferedReader getReader() throws IOException {
-            String body = new String(cachedBody, "UTF-8");
-            String sanitized = sanitizeJsonValues(body);
-            return new BufferedReader(new StringReader(sanitized));
-        }
+    /**
+     * 仅对查询参数做 XSS 消毒（不影响 Header 和 body）
+     */
+    private static class ParameterSanitizingWrapper extends HttpServletRequestWrapper {
+        public ParameterSanitizingWrapper(HttpServletRequest request) { super(request); }
 
         @Override
         public String getParameter(String name) {
@@ -55,131 +64,105 @@ public class XssFilter implements Filter {
         public String[] getParameterValues(String name) {
             String[] values = super.getParameterValues(name);
             if (values == null) return null;
-            String[] sanitized = new String[values.length];
+            String[] result = new String[values.length];
             for (int i = 0; i < values.length; i++) {
-                sanitized[i] = sanitize(values[i]);
+                result[i] = sanitize(values[i]);
             }
-            return sanitized;
-        }
-
-        @Override
-        public String getHeader(String name) {
-            String value = super.getHeader(name);
-            return value != null ? sanitize(value) : null;
-        }
-
-        /**
-         * Sanitize JSON string values while preserving JSON structure.
-         * Walks through the JSON character by character, only sanitizing
-         * content inside quoted string values.
-         */
-        private String sanitizeJsonValues(String json) {
-            if (json == null || json.isEmpty()) return json;
-
-            StringBuilder result = new StringBuilder(json.length());
-            boolean inString = false;
-            boolean escape = false;
-            // Track the last non-whitespace character outside strings
-            char lastSignificant = 0;
-
-            for (int i = 0; i < json.length(); i++) {
-                char c = json.charAt(i);
-
-                if (escape) {
-                    result.append(c);
-                    escape = false;
-                    continue;
-                }
-
-                if (c == '\\' && inString) {
-                    result.append(c);
-                    escape = true;
-                    continue;
-                }
-
-                if (c == '"') {
-                    if (inString) {
-                        // End of string value
-                        inString = false;
-                        result.append(c);
-                    } else {
-                        // A quote starts a value if preceded by : or [
-                        if (lastSignificant == ':' || lastSignificant == '[') {
-                            inString = true;
-                        }
-                        result.append(c);
-                        lastSignificant = c;
-                    }
-                    continue;
-                }
-
-                if (!inString && !Character.isWhitespace(c)) {
-                    lastSignificant = c;
-                }
-
-                if (inString) {
-                    result.append(sanitizeChar(c));
-                } else {
-                    result.append(c);
-                }
-            }
-
-            return result.toString();
-        }
-
-        private char[] sanitizeChar(char c) {
-            switch (c) {
-                case '<': return "&lt;".toCharArray();
-                case '>': return "&gt;".toCharArray();
-                default: return new char[]{c};
-            }
+            return result;
         }
 
         private String sanitize(String value) {
             if (value == null) return null;
             return value
-                .replaceAll("<script", "&lt;script")
+                .replaceAll("<script[\\s>]", "&lt;script ")
                 .replaceAll("</script>", "&lt;/script&gt;")
                 .replaceAll("javascript:", "javascript&#58;")
-                .replaceAll("on\\w+\\s*=", "blocked_event=")
                 .replaceAll("<", "&lt;")
-                .replaceAll(">", "&gt;")
-                .replaceAll("\"", "&quot;")
-                .replaceAll("'", "&#x27;")
-                .replaceAll("\\(", "&#40;")
-                .replaceAll("\\)", "&#41;");
+                .replaceAll(">", "&gt;");
+        }
+    }
+
+    /**
+     * 使用 Jackson 解析 JSON，对所有字符串值做 XSS 消毒后重新序列化
+     * 不改变 JSON 结构，不会破坏嵌套对象或数组
+     */
+    private static class JsonSanitizingWrapper extends HttpServletRequestWrapper {
+
+        private byte[] cachedBody;
+        private final ObjectMapper mapper;
+
+        public JsonSanitizingWrapper(HttpServletRequest request, ObjectMapper mapper) throws IOException {
+            super(request);
+            this.mapper = mapper;
+            InputStream is = request.getInputStream();
+            this.cachedBody = is.readAllBytes();
         }
 
-        /**
-         * Wraps a ByteArrayInputStream as a ServletInputStream.
-         */
-        private static class DelegatingServletInputStream extends ServletInputStream {
-
-            private final ByteArrayInputStream sourceStream;
-
-            public DelegatingServletInputStream(ByteArrayInputStream sourceStream) {
-                this.sourceStream = sourceStream;
+        @Override
+        public ServletInputStream getInputStream() throws IOException {
+            String original = new String(cachedBody, StandardCharsets.UTF_8);
+            String sanitized;
+            try {
+                JsonNode tree = mapper.readTree(original);
+                sanitizeNode(tree);
+                sanitized = mapper.writeValueAsString(tree);
+            } catch (Exception e) {
+                // JSON 解析失败则原样返回（让 Spring 的反序列化处理错误）
+                sanitized = original;
             }
+            ByteArrayInputStream bais = new ByteArrayInputStream(sanitized.getBytes(StandardCharsets.UTF_8));
+            return new DelegatingServletInputStream(bais);
+        }
 
-            @Override
-            public boolean isFinished() {
-                return sourceStream.available() == 0;
-            }
+        @Override
+        public BufferedReader getReader() throws IOException {
+            return new BufferedReader(new InputStreamReader(getInputStream(), StandardCharsets.UTF_8));
+        }
 
-            @Override
-            public boolean isReady() {
-                return true;
-            }
-
-            @Override
-            public void setReadListener(ReadListener listener) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public int read() throws IOException {
-                return sourceStream.read();
+        private void sanitizeNode(JsonNode node) {
+            if (node.isObject()) {
+                ObjectNode obj = (ObjectNode) node;
+                obj.fields().forEachRemaining(entry -> {
+                    JsonNode child = entry.getValue();
+                    if (child.isTextual()) {
+                        entry.setValue(new TextNode(sanitizeHtml(child.asText())));
+                    } else {
+                        sanitizeNode(child);
+                    }
+                });
+            } else if (node.isArray()) {
+                ArrayNode arr = (ArrayNode) node;
+                for (int i = 0; i < arr.size(); i++) {
+                    JsonNode child = arr.get(i);
+                    if (child.isTextual()) {
+                        arr.set(i, new TextNode(sanitizeHtml(child.asText())));
+                    } else {
+                        sanitizeNode(child);
+                    }
+                }
             }
         }
+
+        private String sanitizeHtml(String value) {
+            if (value == null) return null;
+            return value
+                .replaceAll("<script[\\s>]", "&lt;script ")
+                .replaceAll("</script>", "&lt;/script&gt;")
+                .replaceAll("javascript:", "javascript&#58;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;");
+        }
+    }
+
+    /**
+     * 包装 ByteArrayInputStream 为 ServletInputStream
+     */
+    private static class DelegatingServletInputStream extends ServletInputStream {
+        private final ByteArrayInputStream source;
+        DelegatingServletInputStream(ByteArrayInputStream source) { this.source = source; }
+        @Override public boolean isFinished() { return source.available() == 0; }
+        @Override public boolean isReady() { return true; }
+        @Override public void setReadListener(ReadListener listener) {}
+        @Override public int read() { return source.read(); }
     }
 }

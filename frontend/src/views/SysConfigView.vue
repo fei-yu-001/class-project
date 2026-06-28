@@ -4,6 +4,9 @@ import AdminLayout from '@/components/AdminLayout.vue'
 import ToastMessage from '@/components/ToastMessage.vue'
 import { getAllConfigs, updateConfig } from '@/api/sysConfig'
 import { Pencil, Save, X } from 'lucide-vue-next'
+import { usePermission } from '@/composables/usePermission'
+
+const { canEdit } = usePermission()
 
 const configs = ref<any[]>([])
 const loading = ref(false)
@@ -97,7 +100,7 @@ onMounted(fetchData)
                   </button>
                 </template>
                 <template v-else>
-                  <button @click="startEdit(item.configKey, item.configValue)" class="w-7 h-7 rounded-lg text-primary hover:bg-primary/10 flex items-center justify-center" title="编辑">
+                  <button v-if="canEdit()" @click="startEdit(item.configKey, item.configValue)" class="w-7 h-7 rounded-lg text-primary hover:bg-primary/10 flex items-center justify-center" title="编辑">
                     <Pencil class="w-3.5 h-3.5" />
                   </button>
                 </template>

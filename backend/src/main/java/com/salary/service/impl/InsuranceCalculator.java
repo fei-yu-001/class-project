@@ -52,8 +52,12 @@ public class InsuranceCalculator {
     }
 
     private BigDecimal getConfig(String key, String defaultValue) {
-        return sysConfigRepository.findByConfigKey(key)
-                .map(c -> new BigDecimal(c.getConfigValue()))
-                .orElse(new BigDecimal(defaultValue));
+        try {
+            return sysConfigRepository.findByConfigKey(key)
+                    .map(c -> new BigDecimal(c.getConfigValue()))
+                    .orElse(new BigDecimal(defaultValue));
+        } catch (NumberFormatException e) {
+            return new BigDecimal(defaultValue);
+        }
     }
 }

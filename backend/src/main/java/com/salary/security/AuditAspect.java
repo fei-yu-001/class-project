@@ -20,37 +20,57 @@ public class AuditAspect {
 
     @Around("@annotation(requireRole)")
     public Object audit(ProceedingJoinPoint joinPoint, RequireRole requireRole) throws Throwable {
-        Object result = joinPoint.proceed();
-
+        // 提取用户信息（操作前，确保即使操作失败也能记录）
+        Integer userId = null;
+        String username = null;
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth == null || !auth.isAuthenticated()) return result;
-
-            Integer userId = null;
-            String username = null;
-            if (auth.getPrincipal() instanceof Integer id) {
-                userId = id;
-            }
-            if (auth.getDetails() instanceof String name) {
-                username = name;
-            }
-
-            String className = joinPoint.getTarget().getClass().getSimpleName();
-            String methodName = joinPoint.getSignature().getName();
-            String action = className.replace("Controller", "") + "." + methodName;
-
-            // 从参数中提取实体ID（如果有 Integer 类型参数）
-            Integer entityId = null;
-            String detail = null;
-            for (Object arg : joinPoint.getArgs()) {
-                if (arg instanceof Integer id) {
-                    entityId = id;
+            if (auth != null && auth.isAuthenticated()) {
+                if (auth.getPrincipal() instanceof Integer id) {
+                    userId = id;
+                }
+                if (auth.getDetails() instanceof String name) {
+                    username = name;
                 }
             }
-            if (joinPoint.getArgs().length > 0) {
-                detail = truncateArgs(joinPoint.getArgs());
-            }
+        } catch (Exception ignored) {}
 
+        String className = joinPoint.getTarget().getClass().getSimpleName();
+        String methodName = joinPoint.getSignature().getName();
+        String action = className.replace("Controller", "") + "." + methodName;
+
+        // 提取第一个 Integer 参数作为实体ID
+        Integer entityId = null;
+        for (Object arg : joinPoint.getArgs()) {
+            if (arg instanceof Integer id) {
+                entityId = id;
+                break; // 取第一个，不覆盖
+            }
+        }
+
+        String detail = null;
+        if (joinPoint.getArgs().length > 0) {
+            detail = truncateArgs(joinPoint.getArgs());
+        }
+
+        Object result;
+        String outcome = "成功";
+        try {
+            result = joinPoint.proceed();
+        } catch (Throwable ex) {
+            outcome = "失败: " + ex.getMessage();
+            // 记录失败操作后重新抛出异常
+            try {
+                auditLogService.log(userId, username, action + " [" + outcome + "]",
+                        className, entityId, detail);
+            } catch (Exception logEx) {
+                log.warn("审计记录异常: {}", logEx.getMessage());
+            }
+            throw ex;
+        }
+
+        // 记录成功操作（异步，不阻塞）
+        try {
             auditLogService.log(userId, username, action, className, entityId, detail);
         } catch (Exception e) {
             log.warn("审计记录异常: {}", e.getMessage());

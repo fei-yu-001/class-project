@@ -1,0 +1,1 @@
+import{u as t}from"./index-yw_SBB9W.js";function A(){const s=t(),e=()=>{var n;return((n=s.user)==null?void 0:n.role)==="ADMIN"};return{isAdmin:e,isUser:()=>{var n;return((n=s.user)==null?void 0:n.role)==="USER"},canEdit:()=>e(),canDelete:()=>e(),canCreate:()=>e(),canManageUsers:()=>e(),canApprove:()=>e()}}export{A as u};

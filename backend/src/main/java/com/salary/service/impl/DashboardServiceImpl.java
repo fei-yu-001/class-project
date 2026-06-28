@@ -17,6 +17,7 @@ import java.math.RoundingMode;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -50,7 +51,7 @@ public class DashboardServiceImpl implements DashboardService {
     private DashboardStats getAdminStats() {
         long totalDepts = departmentRepository.count();
         long totalPos = positionRepository.count();
-        BigDecimal totalNet = salaryRepository.sumNetPay();
+        BigDecimal totalNet = Optional.ofNullable(salaryRepository.sumNetPay()).orElse(BigDecimal.ZERO);
         String currentPeriod = YearMonth.now().toString();
 
         return DashboardStats.builder()
@@ -60,8 +61,8 @@ public class DashboardServiceImpl implements DashboardService {
                 .totalPositions(totalPos)
                 .pendingSalaries(salaryRepository.countByStatus("GENERATED"))
                 .paidSalaries(salaryRepository.countByStatus("PAID"))
-                .currentPeriodGrossSalary(salaryRepository.sumGrossByPayPeriod(currentPeriod))
-                .currentPeriodNetSalary(salaryRepository.sumNetByPayPeriod(currentPeriod))
+                .currentPeriodGrossSalary(Optional.ofNullable(salaryRepository.sumGrossByPayPeriod(currentPeriod)).orElse(BigDecimal.ZERO))
+                .currentPeriodNetSalary(Optional.ofNullable(salaryRepository.sumNetByPayPeriod(currentPeriod)).orElse(BigDecimal.ZERO))
                 .totalNetSalary(totalNet)
                 .bankCardCount(paymentMethodRepository.countByPayType("BANK_CARD"))
                 .alipayCount(paymentMethodRepository.countByPayType("ALIPAY"))
@@ -99,17 +100,19 @@ public class DashboardServiceImpl implements DashboardService {
                     }
 
                     var salaries = salaryRepository.findByEmpId(empId);
+                    salaries.sort((a, b) -> b.getPayPeriod().compareTo(a.getPayPeriod()));
                     if (!salaries.isEmpty()) {
                         Salary latest = salaries.get(salaries.size() - 1);
-                        myLatestNetPay = latest.getNetPay();
-                        myTotalBonus = latest.getPerformanceBonus()
-                                .add(latest.getFullAttendanceBonus())
-                                .add(latest.getOvertimePay())
-                                .add(latest.getExtraBonus());
-                        myTotalDeduction = latest.getDeductTotal();
+                        myLatestNetPay = Optional.ofNullable(latest.getNetPay()).orElse(BigDecimal.ZERO);
+                        myTotalBonus = Optional.ofNullable(latest.getPerformanceBonus()).orElse(BigDecimal.ZERO)
+                                .add(Optional.ofNullable(latest.getFullAttendanceBonus()).orElse(BigDecimal.ZERO))
+                                .add(Optional.ofNullable(latest.getOvertimePay()).orElse(BigDecimal.ZERO))
+                                .add(Optional.ofNullable(latest.getExtraBonus()).orElse(BigDecimal.ZERO));
+                        myTotalDeduction = Optional.ofNullable(latest.getDeductTotal()).orElse(BigDecimal.ZERO);
                     }
 
                     var reviews = performanceReviewRepository.findByEmpId(empId);
+                    reviews.sort((a, b) -> b.getReviewPeriod().compareTo(a.getReviewPeriod()));
                     if (!reviews.isEmpty()) {
                         myPerformanceGrade = reviews.get(reviews.size() - 1).getGrade();
                     }

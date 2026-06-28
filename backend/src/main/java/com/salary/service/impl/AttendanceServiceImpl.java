@@ -134,18 +134,20 @@ public class AttendanceServiceImpl implements AttendanceService {
         if (!"PENDING".equals(leave.getApprovalStatus())) {
             throw new IllegalArgumentException("只有待审批的请假可以审核通过");
         }
+        // Check and deduct leave balance
+        var balanceOpt = leaveBalanceRepository.findByEmpIdAndLeaveTypeAndYear(
+                leave.getEmpId(), leave.getLeaveType(), Year.now().getValue());
+        if (balanceOpt.isPresent()) {
+            var balance = balanceOpt.get();
+            BigDecimal remaining = balance.getTotalDays().subtract(balance.getUsedDays());
+            if (remaining.compareTo(leave.getLeaveDays()) < 0) {
+                throw new IllegalArgumentException("假期余额不足，剩余" + remaining + "天");
+            }
+            balance.setUsedDays(balance.getUsedDays().add(leave.getLeaveDays()));
+            leaveBalanceRepository.save(balance);
+        }
+        // If no balance record exists, still allow approval (e.g., sick leave has no balance limit)
         leave.setApprovalStatus("APPROVED");
-        // 扣除假期余额
-        leaveBalanceRepository.findByEmpIdAndLeaveTypeAndYear(
-                leave.getEmpId(), leave.getLeaveType(), Year.now().getValue())
-            .ifPresent(balance -> {
-                BigDecimal remaining = balance.getTotalDays().subtract(balance.getUsedDays());
-                if (remaining.compareTo(leave.getLeaveDays()) < 0) {
-                    throw new IllegalArgumentException("假期余额不足，剩余" + remaining + "天");
-                }
-                balance.setUsedDays(balance.getUsedDays().add(leave.getLeaveDays()));
-                leaveBalanceRepository.save(balance);
-            });
         return leaveRequestRepository.save(leave);
     }
 

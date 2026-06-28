@@ -437,10 +437,12 @@ const exportExcel = () => {
 }
 
 const printPDF = () => {
-  const rows = exportTargetRows.value.map(r => `
+  const rows = exportTargetRows.value.map(r => {
+    const esc = (s: any) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    return `
     <tr>
-      <td>${getEmployeeName(r.empId)}</td>
-      <td>${r.payPeriod}</td>
+      <td>${esc(getEmployeeName(r.empId))}</td>
+      <td>${esc(r.payPeriod)}</td>
       <td>${money(r.baseSnap)}</td>
       <td>${money(r.performanceBonus)}</td>
       <td>${money(r.fullAttendanceBonus)}</td>
@@ -449,12 +451,15 @@ const printPDF = () => {
       <td>${money(r.leaveDeduction)}</td>
       <td>${money(r.attendanceDeduction)}</td>
       <td>${money(r.extraDeduction)}</td>
+      <td>${money(r.taxDeduction)}</td>
+      <td>${money(r.insuranceDeduction)}</td>
       <td>${money(r.grossTotal)}</td>
       <td>${money(r.deductTotal)}</td>
       <td>${money(r.netPay)}</td>
-      <td>${statusLabel(r.status)}</td>
+      <td>${esc(statusLabel(r.status))}</td>
     </tr>
-  `).join('')
+  `
+  }).join('')
   const html = `
     <html>
       <head>
