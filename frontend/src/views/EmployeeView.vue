@@ -48,8 +48,8 @@ const fetchData = async () => {
       page: page.value,
       size: 10
     })
-    employees.value = res.data.content
-    totalPages.value = res.data.totalPages
+    employees.value = res.data?.content ?? []
+    totalPages.value = res.data?.totalPages ?? 1
   } catch (e) {
     console.error(e)
   } finally {
@@ -63,8 +63,8 @@ const fetchOptions = async () => {
       listDepartments(),
       listPositions()
     ])
-    departments.value = (dRes as any).data
-    positions.value = (pRes as any).data
+    departments.value = (dRes as any).data ?? []
+    positions.value = (pRes as any).data ?? []
   } catch (e) {
     console.error(e)
   }

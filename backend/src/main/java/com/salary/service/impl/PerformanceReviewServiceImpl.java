@@ -24,7 +24,16 @@ public class PerformanceReviewServiceImpl implements PerformanceReviewService {
 
     @Override
     @Transactional
-    public PerformanceReview createReview(PerformanceReview review) { return performanceReviewRepository.save(review); }
+    public PerformanceReview createReview(PerformanceReview review) {
+        if (review.getEmpId() != null && review.getReviewPeriod() != null) {
+            var existing = performanceReviewRepository
+                .findFirstByEmpIdAndReviewPeriodOrderByReviewIdDesc(review.getEmpId(), review.getReviewPeriod());
+            if (existing.isPresent()) {
+                throw new IllegalArgumentException("该员工在 " + review.getReviewPeriod() + " 已有考核记录，请编辑而非重复创建");
+            }
+        }
+        return performanceReviewRepository.save(review);
+    }
 
     @Override
     @Transactional

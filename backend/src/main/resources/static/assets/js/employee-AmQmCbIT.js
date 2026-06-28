@@ -1,1 +1,0 @@
-import{r as s}from"./index-CKE4xR68.js";const r=e=>s.get("/employees/search",{params:e}),p=e=>s.post("/employees",e),l=(e,t)=>s.put(`/employees/${e}`,t),m=e=>s.delete(`/employees/${e}`);export{p as c,m as d,r as s,l as u};

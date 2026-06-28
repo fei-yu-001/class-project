@@ -41,7 +41,8 @@ public class DataInitializer implements CommandLineRunner {
             if (prod) {
                 return;
             }
-            password = "zzf050731";
+            password = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+            System.out.println("========== 初始管理员密码: " + password + " (仅首次创建时显示) ==========");
         }
 
         if (password.length() < 12 && prod) {
@@ -58,18 +59,17 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void fixNullPasswords() {
-        String defaultPassword = passwordEncoder.encode("zzf050731");
         List<User> users = userRepository.findAll();
         boolean updated = false;
         for (User user : users) {
             if (user.getPassword() == null) {
-                user.setPassword(defaultPassword);
+                user.setEnabled(false);
                 userRepository.save(user);
                 updated = true;
             }
         }
         if (updated) {
-            System.out.println("已修复密码为空的用户记录");
+            System.out.println("已禁用密码为空的用户记录");
         }
     }
 }

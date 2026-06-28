@@ -120,6 +120,7 @@ watch(() => form.value.attStatus, (status) => {
 })
 
 const handleSubmit = async () => {
+  if (!form.value.empId) { showToast('请选择员工', 'error'); return }
   try {
     const payload = { ...form.value }
     if (editingId.value) {

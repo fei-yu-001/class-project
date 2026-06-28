@@ -215,6 +215,9 @@ public class SalaryServiceImpl implements SalaryService {
                 .orElseThrow(() -> new IllegalArgumentException("员工 " + employee.getEmpName() + " 的职位不存在"));
 
         BigDecimal standardWorkDays = new BigDecimal(getConfig("standard_work_days", "21.75"));
+        if (standardWorkDays.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("系统配置错误：月标准工作日必须大于0");
+        }
         BigDecimal standardWorkHoursPerDay = new BigDecimal(getConfig("standard_work_hours_per_day", "8"));
         BigDecimal fullAttendanceBonusAmount = new BigDecimal(getConfig("full_attendance_bonus", "300"));
         BigDecimal attendancePenaltyPerEvent = new BigDecimal(getConfig("attendance_penalty_per_event", "50"));
@@ -249,6 +252,7 @@ public class SalaryServiceImpl implements SalaryService {
                 .map(LeaveRequest::getLeaveDays)
                 .filter(v -> v != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        approvedLeaveDays = approvedLeaveDays.max(BigDecimal.ZERO);
 
         List<OvertimeRecord> overtimeRecords = overtimeRecordRepository
                 .findByEmpIdAndApprovalStatusAndOtDateBetween(employee.getEmpId(), "APPROVED", periodStart, periodEnd);

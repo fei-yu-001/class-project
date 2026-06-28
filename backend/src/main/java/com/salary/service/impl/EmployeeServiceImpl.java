@@ -5,6 +5,7 @@ import com.salary.entity.Employee;
 import com.salary.repository.DepartmentRepository;
 import com.salary.repository.EmployeeRepository;
 import com.salary.repository.PositionRepository;
+import com.salary.repository.SalaryRepository;
 import com.salary.service.EmployeeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -21,6 +22,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final EmployeeRepository employeeRepository;
     private final DepartmentRepository departmentRepository;
     private final PositionRepository positionRepository;
+    private final SalaryRepository salaryRepository;
 
     @Override
     @Transactional
@@ -78,6 +80,11 @@ public class EmployeeServiceImpl implements EmployeeService {
     public void delete(Integer empId) {
         if (!employeeRepository.existsById(empId)) {
             throw new IllegalArgumentException("员工不存在");
+        }
+        // Check for salary records - prevent deleting employees with financial history
+        long salaryCount = salaryRepository.findByEmpId(empId).size();
+        if (salaryCount > 0) {
+            throw new IllegalArgumentException("该员工有工资记录，不能删除。请将其状态改为\"离职\"");
         }
         employeeRepository.deleteById(empId);
     }

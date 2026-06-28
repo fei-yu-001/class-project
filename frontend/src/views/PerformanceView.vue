@@ -101,6 +101,9 @@ const openEdit = (item: any) => {
 }
 
 const handleSubmit = async () => {
+  if (!form.value.empId) { showToast('请选择员工', 'error'); return }
+  if (!form.value.grade) { showToast('请选择绩效等级', 'error'); return }
+  if (!form.value.reviewPeriod || !/^\d{4}-\d{2}$/.test(form.value.reviewPeriod)) { showToast('考核周期格式应为 YYYY-MM', 'error'); return }
   try {
     const payload = {
       empId: form.value.empId,

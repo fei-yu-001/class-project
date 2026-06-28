@@ -34,9 +34,10 @@ const money = (value: any) => Number(value || 0).toLocaleString('zh-CN', {
 const fetchStats = async () => {
   try {
     const res: any = await getStats()
-    stats.value = res.data
+    stats.value = res.data || {}
   } catch (e) {
     console.error(e)
+    stats.value = {}
   } finally {
     loading.value = false
   }

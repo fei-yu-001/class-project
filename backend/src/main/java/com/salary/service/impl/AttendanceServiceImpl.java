@@ -10,6 +10,7 @@ import com.salary.repository.OvertimeRecordRepository;
 import com.salary.repository.LeaveBalanceRepository;
 import com.salary.service.AttendanceService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final LeaveRequestRepository leaveRequestRepository;
     private final OvertimeRecordRepository overtimeRecordRepository;
     private final LeaveBalanceRepository leaveBalanceRepository;
+    private final CacheManager cacheManager;
 
     @Override
     public List<Attendance> getAllAttendance() { return attendanceRepository.findAll(); }
@@ -45,7 +47,9 @@ public class AttendanceServiceImpl implements AttendanceService {
         if (exists) {
             throw new IllegalArgumentException("该员工在 " + record.getAttDate() + " 已有考勤记录");
         }
-        return attendanceRepository.save(record);
+        Attendance saved = attendanceRepository.save(record);
+        evictDashboardCache();
+        return saved;
     }
 
     @Override
@@ -69,12 +73,17 @@ public class AttendanceServiceImpl implements AttendanceService {
                 throw new IllegalArgumentException("该员工在 " + record.getAttDate() + " 已有考勤记录");
             }
         }
-        return attendanceRepository.save(existing);
+        Attendance saved = attendanceRepository.save(existing);
+        evictDashboardCache();
+        return saved;
     }
 
     @Override
     @Transactional
-    public void deleteAttendance(Integer id) { attendanceRepository.deleteById(id); }
+    public void deleteAttendance(Integer id) {
+        attendanceRepository.deleteById(id);
+        evictDashboardCache();
+    }
 
     @Override
     public List<LeaveRequest> getAllLeaveRequests() { return leaveRequestRepository.findAll(); }
@@ -93,7 +102,9 @@ public class AttendanceServiceImpl implements AttendanceService {
         if (request.getLeaveDays() != null && request.getLeaveDays().compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("请假天数必须大于0");
         }
-        return leaveRequestRepository.save(request);
+        LeaveRequest saved = leaveRequestRepository.save(request);
+        evictDashboardCache();
+        return saved;
     }
 
     @Override
@@ -108,7 +119,12 @@ public class AttendanceServiceImpl implements AttendanceService {
         existing.setEndDate(request.getEndDate());
         existing.setLeaveDays(request.getLeaveDays());
         existing.setApprovalStatus(request.getApprovalStatus());
-        return leaveRequestRepository.save(existing);
+        if (request.getLeaveDays() != null && request.getLeaveDays().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("请假天数必须大于0");
+        }
+        LeaveRequest saved = leaveRequestRepository.save(existing);
+        evictDashboardCache();
+        return saved;
     }
 
     @Override
@@ -127,6 +143,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 });
         }
         leaveRequestRepository.deleteById(id);
+        evictDashboardCache();
     }
 
     @Override
@@ -142,7 +159,9 @@ public class AttendanceServiceImpl implements AttendanceService {
         if (record.getOtHours() == null || record.getOtHours().compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("加班时长必须大于0");
         }
-        return overtimeRecordRepository.save(record);
+        OvertimeRecord saved = overtimeRecordRepository.save(record);
+        evictDashboardCache();
+        return saved;
     }
 
     @Override
@@ -155,12 +174,17 @@ public class AttendanceServiceImpl implements AttendanceService {
         existing.setOtHours(record.getOtHours());
         existing.setOtDate(record.getOtDate());
         existing.setApprovalStatus(record.getApprovalStatus());
-        return overtimeRecordRepository.save(existing);
+        OvertimeRecord saved = overtimeRecordRepository.save(existing);
+        evictDashboardCache();
+        return saved;
     }
 
     @Override
     @Transactional
-    public void deleteOvertimeRecord(Integer id) { overtimeRecordRepository.deleteById(id); }
+    public void deleteOvertimeRecord(Integer id) {
+        overtimeRecordRepository.deleteById(id);
+        evictDashboardCache();
+    }
 
     @Override
     @Transactional
@@ -184,7 +208,9 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
         // If no balance record exists, still allow approval (e.g., sick leave has no balance limit)
         leave.setApprovalStatus("APPROVED");
-        return leaveRequestRepository.save(leave);
+        LeaveRequest saved = leaveRequestRepository.save(leave);
+        evictDashboardCache();
+        return saved;
     }
 
     @Override
@@ -196,7 +222,9 @@ public class AttendanceServiceImpl implements AttendanceService {
             throw new IllegalArgumentException("只有待审批的请假可以驳回");
         }
         leave.setApprovalStatus("REJECTED");
-        return leaveRequestRepository.save(leave);
+        LeaveRequest saved = leaveRequestRepository.save(leave);
+        evictDashboardCache();
+        return saved;
     }
 
     @Override
@@ -208,7 +236,9 @@ public class AttendanceServiceImpl implements AttendanceService {
             throw new IllegalArgumentException("只有待审批的加班可以审核通过");
         }
         ot.setApprovalStatus("APPROVED");
-        return overtimeRecordRepository.save(ot);
+        OvertimeRecord saved = overtimeRecordRepository.save(ot);
+        evictDashboardCache();
+        return saved;
     }
 
     @Override
@@ -220,12 +250,20 @@ public class AttendanceServiceImpl implements AttendanceService {
             throw new IllegalArgumentException("只有待审批的加班可以驳回");
         }
         ot.setApprovalStatus("REJECTED");
-        return overtimeRecordRepository.save(ot);
+        OvertimeRecord saved = overtimeRecordRepository.save(ot);
+        evictDashboardCache();
+        return saved;
     }
 
     private void validateEmployee(Integer empId) {
         if (empId == null || !employeeRepository.existsById(empId)) {
             throw new IllegalArgumentException("员工不存在");
+        }
+    }
+
+    private void evictDashboardCache() {
+        if (cacheManager.getCache("dashboardStats") != null) {
+            cacheManager.getCache("dashboardStats").clear();
         }
     }
 }

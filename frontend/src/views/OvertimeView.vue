@@ -150,7 +150,10 @@ const handleSubmit = async () => {
   if (!form.value.otHours || form.value.otHours < 0.5) { showToast('加班时长不能少于0.5小时', 'error'); return }
   if (!form.value.otDate) { showToast('请选择加班日期', 'error'); return }
   try {
-    const payload = { ...form.value }
+    const payload = {
+      ...form.value,
+      approvalStatus: editingItem.value ? form.value.approvalStatus : 'PENDING'
+    }
     if (editingItem.value) {
       await updateOvertime(editingItem.value.otId, payload)
     } else {

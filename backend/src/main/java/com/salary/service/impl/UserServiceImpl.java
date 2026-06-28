@@ -56,12 +56,18 @@ public class UserServiceImpl implements UserService {
     @Override
     public User updateProfile(User user) {
         User existing = getCurrentUser();
-        if (user.getNickname() != null) {
+        if (user.getNickname() != null && !user.getNickname().isBlank()) {
             existing.setNickname(user.getNickname());
         }
-        if (user.getUsername() != null) {
+        if (user.getUsername() != null && !user.getUsername().isBlank()
+                && !user.getUsername().equals(existing.getUsername())) {
+            // Check uniqueness
+            if (userRepository.existsByUsername(user.getUsername())) {
+                throw new IllegalArgumentException("用户名已存在");
+            }
             existing.setUsername(user.getUsername());
         }
+        // Explicitly DO NOT copy role, enabled, empId, password from the input
         return userRepository.save(existing);
     }
 

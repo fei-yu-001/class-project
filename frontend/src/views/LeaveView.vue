@@ -157,7 +157,7 @@ const handleSubmit = async () => {
       startDate: form.value.startDate,
       endDate: form.value.endDate,
       leaveDays: form.value.leaveDays,
-      approvalStatus: form.value.approvalStatus
+      approvalStatus: editingItem.value ? form.value.approvalStatus : 'PENDING'
     }
     if (editingItem.value) {
       await updateLeave(editingItem.value.leaveId, payload)

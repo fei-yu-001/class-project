@@ -76,10 +76,11 @@ const fetchData = async () => {
     }
     if (searchEmpId.value) params.empId = Number(searchEmpId.value)
     const res: any = await searchSalaries(params)
-    salaries.value = res.data.content
-    totalPages.value = res.data.totalPages
+    salaries.value = res.data?.content ?? []
+    totalPages.value = res.data?.totalPages ?? 1
   } catch (e) {
     console.error(e)
+    showToast('获取工资列表失败', 'error')
   }
 }
 
