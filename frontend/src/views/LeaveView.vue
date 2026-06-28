@@ -101,7 +101,7 @@ const fetchData = async () => {
     const res = await getAllLeaves()
     items.value = res.data || []
   } catch (e) {
-    console.error('获取请假列表失败', e)
+    showToast('获取请假列表失败', 'error')
   } finally {
     loading.value = false
   }
@@ -141,12 +141,15 @@ const openEdit = (item: any) => {
     startDate: item.startDate || new Date().toISOString().slice(0, 10),
     endDate: item.endDate || new Date().toISOString().slice(0, 10),
     leaveDays: item.leaveDays || 1,
-    approvalStatus: item.approvalStatus || 'APPROVED'
+    approvalStatus: item.approvalStatus || 'PENDING'
   }
   showModal.value = true
 }
 
 const handleSubmit = async () => {
+  if (!form.value.empId) { showToast('请选择员工', 'error'); return }
+  if (!form.value.startDate || !form.value.endDate) { showToast('请选择日期', 'error'); return }
+  if (form.value.endDate < form.value.startDate) { showToast('结束日期不能早于开始日期', 'error'); return }
   try {
     const payload = {
       empId: form.value.empId,

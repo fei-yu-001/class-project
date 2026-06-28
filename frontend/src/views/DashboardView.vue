@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import StatCard from '@/components/StatCard.vue'
 import { getStats } from '@/api/dashboard'
@@ -161,7 +161,8 @@ const handleResize = () => {
 
 onMounted(async () => {
   await fetchStats()
-  setTimeout(initCharts, 100)
+  await nextTick()
+  initCharts()
   window.addEventListener('resize', handleResize)
 })
 

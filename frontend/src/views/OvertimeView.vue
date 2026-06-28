@@ -146,6 +146,9 @@ const openEdit = (item: any) => {
 }
 
 const handleSubmit = async () => {
+  if (!form.value.empId) { showToast('请选择员工', 'error'); return }
+  if (!form.value.otHours || form.value.otHours < 0.5) { showToast('加班时长不能少于0.5小时', 'error'); return }
+  if (!form.value.otDate) { showToast('请选择加班日期', 'error'); return }
   try {
     const payload = { ...form.value }
     if (editingItem.value) {

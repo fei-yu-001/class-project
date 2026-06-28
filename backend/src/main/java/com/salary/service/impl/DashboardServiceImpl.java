@@ -102,7 +102,7 @@ public class DashboardServiceImpl implements DashboardService {
                     var salaries = salaryRepository.findByEmpId(empId);
                     salaries.sort((a, b) -> b.getPayPeriod().compareTo(a.getPayPeriod()));
                     if (!salaries.isEmpty()) {
-                        Salary latest = salaries.get(salaries.size() - 1);
+                        Salary latest = salaries.get(0);
                         myLatestNetPay = Optional.ofNullable(latest.getNetPay()).orElse(BigDecimal.ZERO);
                         myTotalBonus = Optional.ofNullable(latest.getPerformanceBonus()).orElse(BigDecimal.ZERO)
                                 .add(Optional.ofNullable(latest.getFullAttendanceBonus()).orElse(BigDecimal.ZERO))
@@ -114,7 +114,7 @@ public class DashboardServiceImpl implements DashboardService {
                     var reviews = performanceReviewRepository.findByEmpId(empId);
                     reviews.sort((a, b) -> b.getReviewPeriod().compareTo(a.getReviewPeriod()));
                     if (!reviews.isEmpty()) {
-                        myPerformanceGrade = reviews.get(reviews.size() - 1).getGrade();
+                        myPerformanceGrade = reviews.get(0).getGrade();
                     }
                 }
             }

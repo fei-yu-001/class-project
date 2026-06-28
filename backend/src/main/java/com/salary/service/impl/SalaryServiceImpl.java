@@ -89,7 +89,7 @@ public class SalaryServiceImpl implements SalaryService {
                 .attendanceDeduction(BigDecimal.ZERO)
                 .taxDeduction(BigDecimal.ZERO)
                 .insuranceDeduction(BigDecimal.ZERO)
-                .status(request.getStatus() != null ? request.getStatus() : "GENERATED")
+                .status("GENERATED")
                 .build();
 
         Salary saved = salaryRepository.save(salary);
@@ -114,9 +114,6 @@ public class SalaryServiceImpl implements SalaryService {
         salary.setGrossTotal(request.getGrossTotal() != null ? request.getGrossTotal() : BigDecimal.ZERO);
         salary.setDeductTotal(request.getDeductTotal() != null ? request.getDeductTotal() : BigDecimal.ZERO);
         salary.setNetPay(request.getNetPay() != null ? request.getNetPay() : BigDecimal.ZERO);
-        if (request.getStatus() != null && !request.getStatus().isBlank()) {
-            salary.setStatus(request.getStatus());
-        }
 
         Salary saved = salaryRepository.save(salary);
         evictDashboardCache();
@@ -167,7 +164,7 @@ public class SalaryServiceImpl implements SalaryService {
         YearMonth yearMonth = parsePayPeriod(payPeriod);
         String lockKey = "salary:generate:lock:" + payPeriod;
         Boolean locked = stringRedisTemplate.opsForValue()
-                .setIfAbsent(lockKey, "1", 60, TimeUnit.SECONDS);
+                .setIfAbsent(lockKey, "1", 300, TimeUnit.SECONDS);
         if (!Boolean.TRUE.equals(locked)) {
             throw new IllegalArgumentException("该计薪周期正在生成工资，请稍后再试");
         }
@@ -190,8 +187,8 @@ public class SalaryServiceImpl implements SalaryService {
         Optional<Salary> existing = salaryRepository.findByEmpIdAndPayPeriod(employee.getEmpId(), payPeriod);
         if (existing.isPresent()) {
             Salary salary = existing.get();
-            if ("PAID".equals(salary.getStatus())) {
-                throw new IllegalArgumentException("已发放工资不能重新生成");
+            if ("PAID".equals(salary.getStatus()) || "APPROVED".equals(salary.getStatus())) {
+                throw new IllegalArgumentException("已发放或已审核工资不能重新生成");
             }
             if (!overwriteUnpaid) {
                 // Return existing record as-is without recalculating

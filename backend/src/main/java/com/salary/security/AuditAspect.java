@@ -29,9 +29,7 @@ public class AuditAspect {
                 if (auth.getPrincipal() instanceof Integer id) {
                     userId = id;
                 }
-                if (auth.getDetails() instanceof String name) {
-                    username = name;
-                }
+                username = auth.getName();
             }
         } catch (Exception ignored) {}
 

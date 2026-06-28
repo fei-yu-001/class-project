@@ -89,6 +89,7 @@ public class XssFilter implements Filter {
     private static class JsonSanitizingWrapper extends HttpServletRequestWrapper {
 
         private byte[] cachedBody;
+        private byte[] sanitizedBody;
         private final ObjectMapper mapper;
 
         public JsonSanitizingWrapper(HttpServletRequest request, ObjectMapper mapper) throws IOException {
@@ -100,17 +101,17 @@ public class XssFilter implements Filter {
 
         @Override
         public ServletInputStream getInputStream() throws IOException {
-            String original = new String(cachedBody, StandardCharsets.UTF_8);
-            String sanitized;
-            try {
-                JsonNode tree = mapper.readTree(original);
-                sanitizeNode(tree);
-                sanitized = mapper.writeValueAsString(tree);
-            } catch (Exception e) {
-                // JSON 解析失败则原样返回（让 Spring 的反序列化处理错误）
-                sanitized = original;
+            if (sanitizedBody == null) {
+                String original = new String(cachedBody, StandardCharsets.UTF_8);
+                try {
+                    JsonNode tree = mapper.readTree(original);
+                    sanitizeNode(tree);
+                    sanitizedBody = mapper.writeValueAsString(tree).getBytes(StandardCharsets.UTF_8);
+                } catch (Exception e) {
+                    sanitizedBody = cachedBody;
+                }
             }
-            ByteArrayInputStream bais = new ByteArrayInputStream(sanitized.getBytes(StandardCharsets.UTF_8));
+            ByteArrayInputStream bais = new ByteArrayInputStream(sanitizedBody);
             return new DelegatingServletInputStream(bais);
         }
 

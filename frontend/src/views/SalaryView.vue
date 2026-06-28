@@ -41,7 +41,7 @@ const confirmState = ref({
   action: null as null | (() => Promise<void>)
 })
 
-const selectedRowIds = ref<Set<number>>(new Set())
+const selectedRowIds = ref<number[]>([])
 const showSelectedOnly = ref(false)
 const showPrintMenu = ref(false)
 
@@ -180,16 +180,16 @@ const handleGenerate = async () => {
           payPeriod: previewPeriod.value,
           overwriteUnpaid: overwriteUnpaid.value
         }
-        if (selectedRowIds.value.size > 0) {
+        if (selectedRowIds.value.length > 0) {
           payload.empIds = salaries.value
-            .filter(s => selectedRowIds.value.has(s.salaryId))
+            .filter(s => selectedRowIds.value.includes(s.salaryId))
             .map(s => s.empId)
         }
         await generateSalaries(payload)
         await handlePreview()
         searchPayPeriod.value = previewPeriod.value
         page.value = 0
-        selectedRowIds.value.clear()
+        selectedRowIds.value = []
         showSelectedOnly.value = false
         fetchData()
         showToast('工资已生成', 'success')
@@ -217,6 +217,14 @@ const openEdit = (row: any) => {
 }
 
 const handleSave = async () => {
+  if (!form.value.empId) {
+    showToast('请选择员工', 'error')
+    return
+  }
+  if (!form.value.payPeriod || !/^\d{4}-\d{2}$/.test(form.value.payPeriod)) {
+    showToast('工资周期格式应为 YYYY-MM', 'error')
+    return
+  }
   const data = {
     empId: Number(form.value.empId),
     payPeriod: form.value.payPeriod,
@@ -282,7 +290,7 @@ const handleDelete = async (row: any) => {
     action: async () => {
       try {
         await deleteSalary(row.salaryId)
-        selectedRowIds.value.delete(row.salaryId)
+        const idx = selectedRowIds.value.indexOf(row.salaryId); if (idx >= 0) selectedRowIds.value.splice(idx, 1)
         showToast('删除成功', 'success')
         fetchData()
       } catch (e: any) {
@@ -302,7 +310,7 @@ const handleBatchApprove = () => {
     action: async () => {
       try {
         await batchApproveSalaries(ids)
-        selectedRowIds.value.clear()
+        selectedRowIds.value = []
         showSelectedOnly.value = false
         fetchData()
         showToast('批量审核成功', 'success')
@@ -324,7 +332,7 @@ const handleBatchPay = () => {
     action: async () => {
       try {
         await batchPaySalaries(ids)
-        selectedRowIds.value.clear()
+        selectedRowIds.value = []
         showSelectedOnly.value = false
         fetchData()
         showToast('批量发放成功', 'success')
@@ -338,33 +346,40 @@ const handleBatchPay = () => {
 // 选中框逻辑
 const displaySalaries = computed(() => {
   if (showSelectedOnly.value) {
-    return salaries.value.filter(s => selectedRowIds.value.has(s.salaryId))
+    return salaries.value.filter(s => selectedRowIds.value.includes(s.salaryId))
   }
   return salaries.value
 })
 
 const allSelected = computed(() => {
-  return displaySalaries.value.length > 0 && displaySalaries.value.every(r => selectedRowIds.value.has(r.salaryId))
+  return displaySalaries.value.length > 0 && displaySalaries.value.every(r => selectedRowIds.value.includes(r.salaryId))
 })
 
 const toggleSelectAll = () => {
   if (allSelected.value) {
-    displaySalaries.value.forEach(r => selectedRowIds.value.delete(r.salaryId))
+    const displayIds = new Set(displaySalaries.value.map(r => r.salaryId))
+    selectedRowIds.value = selectedRowIds.value.filter(id => !displayIds.has(id))
   } else {
-    displaySalaries.value.forEach(r => selectedRowIds.value.add(r.salaryId))
+    const existing = new Set(selectedRowIds.value)
+    displaySalaries.value.forEach(r => {
+      if (!existing.has(r.salaryId)) {
+        selectedRowIds.value.push(r.salaryId)
+      }
+    })
   }
 }
 
 const toggleRow = (id: number) => {
-  if (selectedRowIds.value.has(id)) {
-    selectedRowIds.value.delete(id)
+  const idx = selectedRowIds.value.indexOf(id)
+  if (idx >= 0) {
+    selectedRowIds.value.splice(idx, 1)
   } else {
-    selectedRowIds.value.add(id)
+    selectedRowIds.value.push(id)
   }
 }
 
 const selectedRows = computed(() => {
-  return salaries.value.filter(s => selectedRowIds.value.has(s.salaryId))
+  return salaries.value.filter(s => selectedRowIds.value.includes(s.salaryId))
 })
 
 const exportTargetRows = computed(() => {
@@ -379,7 +394,7 @@ const historyEmpId = computed(() => {
 
 const handleSearch = () => {
   page.value = 0
-  if (selectedRowIds.value.size > 0) {
+  if (selectedRowIds.value.length > 0) {
     showSelectedOnly.value = true
   } else {
     showSelectedOnly.value = false
@@ -388,7 +403,7 @@ const handleSearch = () => {
 }
 
 const clearSelection = () => {
-  selectedRowIds.value.clear()
+  selectedRowIds.value = []
   showSelectedOnly.value = false
 }
 
@@ -660,28 +675,28 @@ onMounted(() => {
       </div>
       <button @click="handleSearch" class="glass-btn px-4 py-2 rounded-lg text-sm flex items-center gap-2">
         <Search class="w-4 h-4" />
-        {{ selectedRowIds.size > 0 ? '显示选中' : '搜索' }}
+        {{ selectedRowIds.length > 0 ? '显示选中' : '搜索' }}
       </button>
       <button
-        v-if="selectedRowIds.size > 0 || showSelectedOnly"
+        v-if="selectedRowIds.length > 0 || showSelectedOnly"
         @click="clearSelection"
         class="glass-btn-secondary px-3 py-2 rounded-lg text-sm flex items-center gap-1"
       >
         <X class="w-3.5 h-3.5" /> 清除选中
       </button>
       <button
-        v-if="selectedRowIds.size > 0 && canEdit()"
+        v-if="selectedRowIds.length > 0 && canEdit()"
         @click="handleBatchApprove"
         class="glass-btn px-3 py-2 rounded-lg text-sm flex items-center gap-1"
       >
-        <CheckCircle class="w-3.5 h-3.5" /> 批量审核 ({{ selectedRowIds.size }})
+        <CheckCircle class="w-3.5 h-3.5" /> 批量审核 ({{ selectedRowIds.length }})
       </button>
       <button
-        v-if="selectedRowIds.size > 0 && canEdit()"
+        v-if="selectedRowIds.length > 0 && canEdit()"
         @click="handleBatchPay"
         class="glass-btn px-3 py-2 rounded-lg text-sm flex items-center gap-1"
       >
-        <WalletCards class="w-3.5 h-3.5" /> 批量发放 ({{ selectedRowIds.size }})
+        <WalletCards class="w-3.5 h-3.5" /> 批量发放 ({{ selectedRowIds.length }})
       </button>
       <button
         v-if="historyEmpId"
@@ -735,7 +750,7 @@ onMounted(() => {
               <td class="text-center">
                 <input
                   type="checkbox"
-                  :checked="selectedRowIds.has(row.salaryId)"
+                  :checked="selectedRowIds.includes(row.salaryId)"
                   @change="toggleRow(row.salaryId)"
                   class="accent-primary"
                 />

@@ -48,8 +48,8 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Override
     @Transactional
     public Attendance updateAttendance(Integer id, Attendance record) {
-        Attendance existing = attendanceRepository.findById(id).orElse(null);
-        if (existing == null) return null;
+        Attendance existing = attendanceRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("记录不存在"));
         validateEmployee(record.getEmpId());
         existing.setEmpId(record.getEmpId());
         existing.setAttDate(record.getAttDate());
@@ -80,8 +80,8 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Override
     @Transactional
     public LeaveRequest updateLeaveRequest(Integer id, LeaveRequest request) {
-        LeaveRequest existing = leaveRequestRepository.findById(id).orElse(null);
-        if (existing == null) return null;
+        LeaveRequest existing = leaveRequestRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("记录不存在"));
         validateEmployee(request.getEmpId());
         existing.setEmpId(request.getEmpId());
         existing.setLeaveType(request.getLeaveType());
@@ -112,8 +112,8 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Override
     @Transactional
     public OvertimeRecord updateOvertimeRecord(Integer id, OvertimeRecord record) {
-        OvertimeRecord existing = overtimeRecordRepository.findById(id).orElse(null);
-        if (existing == null) return null;
+        OvertimeRecord existing = overtimeRecordRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("记录不存在"));
         validateEmployee(record.getEmpId());
         existing.setEmpId(record.getEmpId());
         existing.setOtHours(record.getOtHours());

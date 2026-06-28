@@ -3,15 +3,15 @@ import { ref, onMounted } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import ToastMessage from '@/components/ToastMessage.vue'
 import { getAuditLogs } from '@/api/auditLog'
-import { usePermission } from '@/composables/usePermission'
-
-const { isAdmin } = usePermission()
 
 const logs = ref<any[]>([])
 const loading = ref(false)
 const page = ref(0)
 const totalPages = ref(1)
 const toast = ref({ message: '', type: 'info' as 'success' | 'error' | 'info' })
+const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+  toast.value = { message, type }
+}
 
 const fetchData = async () => {
   loading.value = true
@@ -20,7 +20,7 @@ const fetchData = async () => {
     logs.value = res.data?.content || []
     totalPages.value = res.data?.totalPages || 1
   } catch (e: any) {
-    toast.value = { message: e.message || '获取日志失败', type: 'error' }
+    showToast(e.message || '获取日志失败', 'error')
   } finally {
     loading.value = false
   }
