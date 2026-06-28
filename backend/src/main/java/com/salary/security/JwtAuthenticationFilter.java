@@ -30,9 +30,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = resolveToken(request);
 
         if (StringUtils.hasText(token)) {
-            if (redisService.isTokenBlacklisted(token)) {
-                filterChain.doFilter(request, response);
-                return;
+            try {
+                if (redisService.isTokenBlacklisted(token)) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+            } catch (Exception e) {
+                // Redis unavailable - fail open (allow request, accept minor security risk)
             }
 
             if (jwtTokenProvider.validateToken(token)) {

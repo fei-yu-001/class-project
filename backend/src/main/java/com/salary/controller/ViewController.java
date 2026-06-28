@@ -2,6 +2,7 @@ package com.salary.controller;
 
 import com.salary.common.Result;
 import com.salary.entity.*;
+import com.salary.security.RequireRole;
 import com.salary.service.ViewService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +17,7 @@ public class ViewController {
 
     private final ViewService viewService;
 
+    @RequireRole("ADMIN")
     @GetMapping("/emp-full")
     public Result<List<EmpFullView>> getEmpFull(@RequestParam(required = false) String deptCode) {
         if (deptCode != null) {
@@ -24,6 +26,7 @@ public class ViewController {
         return Result.success(viewService.getEmpFullInfo());
     }
 
+    @RequireRole("ADMIN")
     @GetMapping("/sal-detail")
     public Result<List<SalDetailView>> getSalDetails(@RequestParam(required = false) String payPeriod) {
         if (payPeriod != null) {
@@ -32,36 +35,43 @@ public class ViewController {
         return Result.success(viewService.getSalDetails());
     }
 
+    @RequireRole("ADMIN")
     @GetMapping("/emp-perf-att")
     public Result<List<EmpPerfAttView>> getEmpPerfAtt() {
         return Result.success(viewService.getEmpPerfAtt());
     }
 
+    @RequireRole("ADMIN")
     @GetMapping("/emp-project")
     public Result<List<EmpProjectView>> getEmpProjects() {
         return Result.success(viewService.getEmpProjects());
     }
 
+    @RequireRole("ADMIN")
     @GetMapping("/emp-payinfo")
     public Result<List<EmpPayInfoView>> getEmpPayInfo() {
         return Result.success(viewService.getEmpPayInfo());
     }
 
+    @RequireRole("ADMIN")
     @GetMapping("/schema")
     public Result<Map<String, Object>> getSchema() {
         return Result.success(viewService.getDatabaseSchema());
     }
 
+    @RequireRole("ADMIN")
     @GetMapping("/charts/monthly")
     public Result<List<Map<String, Object>>> getMonthlyChart() {
         return Result.success(viewService.getMonthlyNetPayChart());
     }
 
+    @RequireRole("ADMIN")
     @GetMapping("/charts/paytype")
     public Result<List<Map<String, Object>>> getPayTypeChart() {
         return Result.success(viewService.getPayTypeChart());
     }
 
+    @RequireRole("ADMIN")
     @GetMapping("/charts/grade")
     public Result<List<Map<String, Object>>> getGradeChart() {
         return Result.success(viewService.getGradeChart());

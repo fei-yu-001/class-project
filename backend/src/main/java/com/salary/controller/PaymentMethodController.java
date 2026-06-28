@@ -38,16 +38,19 @@ public class PaymentMethodController {
     }
 
     @GetMapping("/{empId}")
+    @RequireRole("ADMIN")
     public Result<PaymentMethod> getById(@PathVariable Integer empId) {
         return Result.success(paymentMethodService.getById(empId));
     }
 
     @GetMapping("/employee/{empId}")
+    @RequireRole("ADMIN")
     public Result<PaymentMethod> getByEmployeeId(@PathVariable Integer empId) {
         return Result.success(paymentMethodService.getByEmpId(empId));
     }
 
     @GetMapping("/list")
+    @RequireRole("ADMIN")
     public Result<List<PaymentMethod>> listAll() {
         return Result.success(paymentMethodService.listAll());
     }

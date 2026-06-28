@@ -15,9 +15,11 @@ public class PositionChangeController {
     private final PositionChangeService positionChangeService;
 
     @GetMapping
+    @RequireRole("ADMIN")
     public Result<List<PositionChange>> getAll() { return Result.success(positionChangeService.getAllChanges()); }
 
     @GetMapping("/employee/{empId}")
+    @RequireRole("ADMIN")
     public Result<List<PositionChange>> getByEmployee(@PathVariable Integer empId) { return Result.success(positionChangeService.getChangesByEmployee(empId)); }
 
     @PostMapping

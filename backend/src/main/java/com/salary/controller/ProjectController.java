@@ -15,9 +15,11 @@ public class ProjectController {
     private final ProjectService projectService;
 
     @GetMapping
+    @RequireRole("ADMIN")
     public Result<List<Project>> getAll() { return Result.success(projectService.getAllProjects()); }
 
     @GetMapping("/{id}")
+    @RequireRole("ADMIN")
     public Result<Project> getById(@PathVariable Integer id) { return Result.success(projectService.getProjectById(id)); }
 
     @PostMapping

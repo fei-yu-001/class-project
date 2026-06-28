@@ -15,12 +15,15 @@ public class PerformanceReviewController {
     private final PerformanceReviewService performanceReviewService;
 
     @GetMapping
+    @RequireRole("ADMIN")
     public Result<List<PerformanceReview>> getAll() { return Result.success(performanceReviewService.getAllReviews()); }
 
     @GetMapping("/{id}")
+    @RequireRole("ADMIN")
     public Result<PerformanceReview> getById(@PathVariable Integer id) { return Result.success(performanceReviewService.getReviewById(id)); }
 
     @GetMapping("/employee/{empId}")
+    @RequireRole("ADMIN")
     public Result<List<PerformanceReview>> getByEmployee(@PathVariable Integer empId) { return Result.success(performanceReviewService.getReviewsByEmployee(empId)); }
 
     @PostMapping

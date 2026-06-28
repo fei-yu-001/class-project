@@ -24,6 +24,7 @@ import com.salary.repository.SalaryRepository;
 import com.salary.repository.SysConfigRepository;
 import com.salary.service.SalaryService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -43,6 +44,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SalaryServiceImpl implements SalaryService {
@@ -419,6 +421,7 @@ public class SalaryServiceImpl implements SalaryService {
                     })
                     .orElse(defaultValue);
         } catch (Exception e) {
+            log.warn("读取系统配置 {} 失败，使用默认值 {}: {}", key, defaultValue, e.getMessage());
             return defaultValue;
         }
     }
@@ -502,8 +505,12 @@ public class SalaryServiceImpl implements SalaryService {
     }
 
     private void evictDashboardCache() {
-        if (cacheManager.getCache("dashboardStats") != null) {
-            cacheManager.getCache("dashboardStats").clear();
+        try {
+            if (cacheManager.getCache("dashboardStats") != null) {
+                cacheManager.getCache("dashboardStats").clear();
+            }
+        } catch (Exception e) {
+            // Cache eviction failure should not roll back business operations
         }
     }
 }

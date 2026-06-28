@@ -268,8 +268,12 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     private void evictDashboardCache() {
-        if (cacheManager.getCache("dashboardStats") != null) {
-            cacheManager.getCache("dashboardStats").clear();
+        try {
+            if (cacheManager.getCache("dashboardStats") != null) {
+                cacheManager.getCache("dashboardStats").clear();
+            }
+        } catch (Exception e) {
+            // Cache eviction failure should not roll back business operations
         }
     }
 }

@@ -39,11 +39,13 @@ public class EmployeeController {
     }
 
     @GetMapping("/{empId}")
+    @RequireRole("ADMIN")
     public Result<Employee> getById(@PathVariable Integer empId) {
         return Result.success(employeeService.getById(empId));
     }
 
     @GetMapping("/search")
+    @RequireRole("ADMIN")
     public Result<Page<Employee>> search(
             @RequestParam(required = false) String empName,
             @RequestParam(required = false) String deptCode,

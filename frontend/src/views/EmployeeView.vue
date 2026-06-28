@@ -52,6 +52,7 @@ const fetchData = async () => {
     totalPages.value = res.data?.totalPages ?? 1
   } catch (e) {
     console.error(e)
+    showToast('获取员工列表失败', 'error')
   } finally {
     loading.value = false
   }

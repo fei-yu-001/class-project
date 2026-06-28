@@ -31,7 +31,7 @@ public class AuditLogServiceImpl implements AuditLogService {
                     .build();
             auditLogRepository.save(auditLog);
         } catch (Exception e) {
-            log.warn("审计日志记录失败: {}", e.getMessage());
+            log.error("审计日志记录失败: {}", e.getMessage(), e);
         }
     }
 

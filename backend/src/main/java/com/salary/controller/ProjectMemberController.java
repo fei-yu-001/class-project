@@ -22,12 +22,14 @@ public class ProjectMemberController {
     private final ProjectMemberService service;
 
     /** 查询某项目的所有成员 */
+    @RequireRole("ADMIN")
     @GetMapping("/project/{projId}")
     public Result<List<ProjectMember>> getByProject(@PathVariable Integer projId) {
         return Result.success(service.findByProjId(projId));
     }
 
     /** 查询某员工参与的所有项目 */
+    @RequireRole("ADMIN")
     @GetMapping("/employee/{empId}")
     public Result<List<ProjectMember>> getByEmployee(@PathVariable Integer empId) {
         return Result.success(service.findByEmpId(empId));
@@ -66,6 +68,7 @@ public class ProjectMemberController {
     }
 
     /** 获取项目当前贡献系数总和 */
+    @RequireRole("ADMIN")
     @GetMapping("/sum/{projId}")
     public Result<Map<String, Object>> getCoeffSum(@PathVariable Integer projId) {
         BigDecimal sum = service.sumCoeffByProjId(projId);
