@@ -37,6 +37,9 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Transactional
     public Attendance createAttendance(Attendance record) {
         validateEmployee(record.getEmpId());
+        if (record.getAttDate() != null && record.getAttDate().isAfter(java.time.LocalDate.now())) {
+            throw new IllegalArgumentException("不能记录未来日期的考勤");
+        }
         boolean exists = !attendanceRepository.findByEmpIdAndAttDateBetween(
                 record.getEmpId(), record.getAttDate(), record.getAttDate()).isEmpty();
         if (exists) {
@@ -57,6 +60,15 @@ public class AttendanceServiceImpl implements AttendanceService {
         existing.setLateMinutes(record.getLateMinutes());
         existing.setEarlyLeaveMinutes(record.getEarlyLeaveMinutes());
         existing.setAbsent(record.getAbsent());
+        // Check for duplicate after date change
+        if (attendanceRepository.existsByEmpIdAndAttDate(record.getEmpId(), record.getAttDate())) {
+            boolean isDuplicate = attendanceRepository.findByEmpIdAndAttDateBetween(
+                record.getEmpId(), record.getAttDate(), record.getAttDate()).stream()
+                .anyMatch(a -> !a.getAttId().equals(id));
+            if (isDuplicate) {
+                throw new IllegalArgumentException("该员工在 " + record.getAttDate() + " 已有考勤记录");
+            }
+        }
         return attendanceRepository.save(existing);
     }
 
@@ -74,6 +86,13 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Transactional
     public LeaveRequest createLeaveRequest(LeaveRequest request) {
         validateEmployee(request.getEmpId());
+        if (request.getEndDate() != null && request.getStartDate() != null
+                && request.getEndDate().isBefore(request.getStartDate())) {
+            throw new IllegalArgumentException("结束日期不能早于开始日期");
+        }
+        if (request.getLeaveDays() != null && request.getLeaveDays().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("请假天数必须大于0");
+        }
         return leaveRequestRepository.save(request);
     }
 
@@ -94,7 +113,21 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     @Override
     @Transactional
-    public void deleteLeaveRequest(Integer id) { leaveRequestRepository.deleteById(id); }
+    public void deleteLeaveRequest(Integer id) {
+        LeaveRequest leave = leaveRequestRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("请假记录不存在"));
+        // 如果已审批通过，需要恢复假期余额
+        if ("APPROVED".equals(leave.getApprovalStatus())) {
+            leaveBalanceRepository.findByEmpIdAndLeaveTypeAndYear(
+                    leave.getEmpId(), leave.getLeaveType(), Year.now().getValue())
+                .ifPresent(balance -> {
+                    BigDecimal days = leave.getLeaveDays() != null ? leave.getLeaveDays() : BigDecimal.ONE;
+                    balance.setUsedDays(balance.getUsedDays().subtract(days).max(BigDecimal.ZERO));
+                    leaveBalanceRepository.save(balance);
+                });
+        }
+        leaveRequestRepository.deleteById(id);
+    }
 
     @Override
     public List<OvertimeRecord> getAllOvertimeRecords() { return overtimeRecordRepository.findAll(); }
@@ -106,6 +139,9 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Transactional
     public OvertimeRecord createOvertimeRecord(OvertimeRecord record) {
         validateEmployee(record.getEmpId());
+        if (record.getOtHours() == null || record.getOtHours().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("加班时长必须大于0");
+        }
         return overtimeRecordRepository.save(record);
     }
 

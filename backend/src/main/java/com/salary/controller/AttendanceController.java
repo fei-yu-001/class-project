@@ -17,9 +17,11 @@ public class AttendanceController {
     private final AttendanceService attendanceService;
 
     @GetMapping("/records")
+    @RequireRole("ADMIN")
     public Result<List<Attendance>> getAllAttendance() { return Result.success(attendanceService.getAllAttendance()); }
 
     @GetMapping("/records/employee/{empId}")
+    @RequireRole("ADMIN")
     public Result<List<Attendance>> getAttendanceByEmployee(@PathVariable Integer empId) { return Result.success(attendanceService.getAttendanceByEmployee(empId)); }
 
     @PostMapping("/records")
@@ -35,9 +37,11 @@ public class AttendanceController {
     public Result<Void> deleteAttendance(@PathVariable Integer id) { attendanceService.deleteAttendance(id); return Result.success(); }
 
     @GetMapping("/leaves")
+    @RequireRole("ADMIN")
     public Result<List<LeaveRequest>> getAllLeaves() { return Result.success(attendanceService.getAllLeaveRequests()); }
 
     @GetMapping("/leaves/employee/{empId}")
+    @RequireRole("ADMIN")
     public Result<List<LeaveRequest>> getLeavesByEmployee(@PathVariable Integer empId) { return Result.success(attendanceService.getLeaveRequestsByEmployee(empId)); }
 
     @PostMapping("/leaves")
@@ -53,9 +57,11 @@ public class AttendanceController {
     public Result<Void> deleteLeave(@PathVariable Integer id) { attendanceService.deleteLeaveRequest(id); return Result.success(); }
 
     @GetMapping("/overtime")
+    @RequireRole("ADMIN")
     public Result<List<OvertimeRecord>> getAllOvertime() { return Result.success(attendanceService.getAllOvertimeRecords()); }
 
     @GetMapping("/overtime/employee/{empId}")
+    @RequireRole("ADMIN")
     public Result<List<OvertimeRecord>> getOvertimeByEmployee(@PathVariable Integer empId) { return Result.success(attendanceService.getOvertimeRecordsByEmployee(empId)); }
 
     @PostMapping("/overtime")

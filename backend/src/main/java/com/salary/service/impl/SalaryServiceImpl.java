@@ -212,7 +212,7 @@ public class SalaryServiceImpl implements SalaryService {
     private SalaryCalculationPreview calculate(Employee employee, String payPeriod, YearMonth yearMonth) {
         BigDecimal baseSalary = positionRepository.findById(employee.getPosId())
                 .map(Position::getBaseSalary)
-                .orElse(BigDecimal.ZERO);
+                .orElseThrow(() -> new IllegalArgumentException("员工 " + employee.getEmpName() + " 的职位不存在"));
 
         BigDecimal standardWorkDays = new BigDecimal(getConfig("standard_work_days", "21.75"));
         BigDecimal standardWorkHoursPerDay = new BigDecimal(getConfig("standard_work_hours_per_day", "8"));
@@ -276,7 +276,8 @@ public class SalaryServiceImpl implements SalaryService {
         BigDecimal attendanceEventDeduction = attendancePenaltyPerEvent
                 .multiply(BigDecimal.valueOf(lateCount + earlyLeaveCount));
         BigDecimal attendanceDeduction = absenceDeduction.add(attendanceEventDeduction);
-        boolean fullAttendance = absenceCount == 0
+        boolean fullAttendance = !attendances.isEmpty()
+                && absenceCount == 0
                 && lateCount == 0
                 && earlyLeaveCount == 0
                 && approvedLeaveDays.compareTo(BigDecimal.ZERO) == 0;
@@ -468,7 +469,22 @@ public class SalaryServiceImpl implements SalaryService {
         if (payPeriod == null || payPeriod.trim().isEmpty()) {
             throw new IllegalArgumentException("计薪周期不能为空");
         }
-        return payPeriod.trim();
+        String trimmed = payPeriod.trim();
+        try {
+            YearMonth ym = YearMonth.parse(trimmed, PAY_PERIOD_FORMATTER);
+            return ym.format(PAY_PERIOD_FORMATTER);
+        } catch (DateTimeParseException e) {
+            // 尝试宽松解析 "2026-6" -> "2026-06"
+            try {
+                String[] parts = trimmed.split("-");
+                if (parts.length == 2) {
+                    int year = Integer.parseInt(parts[0]);
+                    int month = Integer.parseInt(parts[1]);
+                    return YearMonth.of(year, month).format(PAY_PERIOD_FORMATTER);
+                }
+            } catch (Exception ignored) {}
+            throw new IllegalArgumentException("计薪周期格式应为 yyyy-MM");
+        }
     }
 
     private BigDecimal divide(BigDecimal value, BigDecimal divisor) {
@@ -476,8 +492,8 @@ public class SalaryServiceImpl implements SalaryService {
     }
 
     private void ensureNotPaid(Salary salary) {
-        if ("PAID".equals(salary.getStatus())) {
-            throw new IllegalArgumentException("已发放工资不能编辑或删除");
+        if ("PAID".equals(salary.getStatus()) || "APPROVED".equals(salary.getStatus())) {
+            throw new IllegalArgumentException("已审核或已发放工资不能编辑或删除");
         }
     }
 
