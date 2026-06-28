@@ -10,6 +10,8 @@ import com.salary.entity.PerformanceReview;
 import com.salary.entity.Position;
 import com.salary.entity.Salary;
 import com.salary.repository.AttendanceRepository;
+import com.salary.repository.BonusRepository;
+import com.salary.repository.DeductionRepository;
 import com.salary.repository.EmployeeRepository;
 import com.salary.repository.LeaveRequestRepository;
 import com.salary.repository.OvertimeRecordRepository;
@@ -44,6 +46,8 @@ class SalaryServiceImplTest {
     private LeaveRequestRepository leaveRequestRepository;
     private OvertimeRecordRepository overtimeRecordRepository;
     private PerformanceReviewRepository performanceReviewRepository;
+    private BonusRepository bonusRepository;
+    private DeductionRepository deductionRepository;
     private StringRedisTemplate redisTemplate;
     private ValueOperations<String, String> valueOperations;
     private SalaryServiceImpl salaryService;
@@ -57,6 +61,8 @@ class SalaryServiceImplTest {
         leaveRequestRepository = mock(LeaveRequestRepository.class);
         overtimeRecordRepository = mock(OvertimeRecordRepository.class);
         performanceReviewRepository = mock(PerformanceReviewRepository.class);
+        bonusRepository = mock(BonusRepository.class);
+        deductionRepository = mock(DeductionRepository.class);
         redisTemplate = mock(StringRedisTemplate.class);
         valueOperations = mock(ValueOperations.class);
         CacheManager cacheManager = mock(CacheManager.class);
@@ -73,6 +79,8 @@ class SalaryServiceImplTest {
                 leaveRequestRepository,
                 overtimeRecordRepository,
                 performanceReviewRepository,
+                bonusRepository,
+                deductionRepository,
                 redisTemplate,
                 cacheManager
         );

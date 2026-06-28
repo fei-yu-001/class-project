@@ -115,6 +115,18 @@ const router = createRouter({
       meta: { requireAdmin: true }
     },
     {
+      path: '/sys-config',
+      name: 'sys-config',
+      component: () => import('@/views/SysConfigView.vue'),
+      meta: { requireAdmin: true }
+    },
+    {
+      path: '/audit-logs',
+      name: 'audit-logs',
+      component: () => import('@/views/AuditLogView.vue'),
+      meta: { requireAdmin: true }
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
       component: () => import('@/views/NotFoundView.vue')

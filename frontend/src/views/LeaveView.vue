@@ -3,8 +3,8 @@ import { ref, computed, onMounted, watch } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import GlassModal from '@/components/GlassModal.vue'
 import ToastMessage from '@/components/ToastMessage.vue'
-import { Plus, Pencil, Trash2, Search } from 'lucide-vue-next'
-import { getAllLeaves, createLeave, updateLeave, deleteLeave } from '@/api/attendance'
+import { Plus, Pencil, Trash2, Search, CheckCircle, XCircle } from 'lucide-vue-next'
+import { getAllLeaves, createLeave, updateLeave, deleteLeave, approveLeave, rejectLeave } from '@/api/attendance'
 import { searchEmployees } from '@/api/employee'
 import { usePermission } from '@/composables/usePermission'
 
@@ -45,10 +45,32 @@ const defaultForm = {
   startDate: new Date().toISOString().slice(0, 10),
   endDate: new Date().toISOString().slice(0, 10),
   leaveDays: 1,
-  approvalStatus: 'APPROVED'
+  approvalStatus: 'PENDING'
 }
 
 const form = ref({ ...defaultForm })
+
+const handleApprove = async (item: any) => {
+  if (!confirm('确认通过该请假申请？')) return
+  try {
+    await approveLeave(item.leaveId)
+    fetchData()
+    showToast('请假已通过', 'success')
+  } catch (e: any) {
+    showToast(e.message || '操作失败', 'error')
+  }
+}
+
+const handleReject = async (item: any) => {
+  if (!confirm('确认驳回该请假申请？')) return
+  try {
+    await rejectLeave(item.leaveId)
+    fetchData()
+    showToast('请假已驳回', 'success')
+  } catch (e: any) {
+    showToast(e.message || '操作失败', 'error')
+  }
+}
 
 const search = ref({
   empId: '',
@@ -241,6 +263,12 @@ onMounted(() => {
                 <td class="px-4 py-3 text-sm text-gray-700">{{ approvalStatusLabel(item.approvalStatus) }}</td>
                 <td class="px-4 py-3 text-center">
                   <div class="inline-flex items-center justify-center gap-1">
+                    <button v-if="canEdit() && item.approvalStatus === 'PENDING'" @click="handleApprove(item)" class="flex items-center justify-center w-7 h-7 rounded-lg text-success hover:bg-success/10 transition-colors" title="通过">
+                      <CheckCircle class="w-3.5 h-3.5" />
+                    </button>
+                    <button v-if="canEdit() && item.approvalStatus === 'PENDING'" @click="handleReject(item)" class="flex items-center justify-center w-7 h-7 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors" title="驳回">
+                      <XCircle class="w-3.5 h-3.5" />
+                    </button>
                     <button v-if="canEdit()" @click="openEdit(item)" class="flex items-center justify-center w-7 h-7 rounded-lg text-primary hover:bg-primary/10 transition-colors"><Pencil class="w-3.5 h-3.5" /></button>
                     <button v-if="canDelete()" @click="handleDelete(item.leaveId)" class="flex items-center justify-center w-7 h-7 rounded-lg text-danger hover:bg-danger/10 transition-colors"><Trash2 class="w-3.5 h-3.5" /></button>
                   </div>

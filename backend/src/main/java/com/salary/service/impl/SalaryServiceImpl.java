@@ -21,6 +21,7 @@ import com.salary.repository.OvertimeRecordRepository;
 import com.salary.repository.PerformanceReviewRepository;
 import com.salary.repository.PositionRepository;
 import com.salary.repository.SalaryRepository;
+import com.salary.repository.SysConfigRepository;
 import com.salary.service.SalaryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.CacheManager;
@@ -46,11 +47,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SalaryServiceImpl implements SalaryService {
 
-    private static final BigDecimal STANDARD_WORK_DAYS = new BigDecimal("21.75");
-    private static final BigDecimal STANDARD_WORK_HOURS_PER_DAY = new BigDecimal("8");
-    private static final BigDecimal OVERTIME_RATE = new BigDecimal("1.5");
-    private static final BigDecimal FULL_ATTENDANCE_BONUS = new BigDecimal("300");
-    private static final BigDecimal ATTENDANCE_PENALTY_PER_EVENT = new BigDecimal("50");
     private static final DateTimeFormatter PAY_PERIOD_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM");
 
     private final SalaryRepository salaryRepository;
@@ -64,6 +60,9 @@ public class SalaryServiceImpl implements SalaryService {
     private final DeductionRepository deductionRepository;
     private final StringRedisTemplate stringRedisTemplate;
     private final CacheManager cacheManager;
+    private final SysConfigRepository sysConfigRepository;
+    private final TaxCalculator taxCalculator;
+    private final InsuranceCalculator insuranceCalculator;
 
     @Override
     @Transactional
@@ -220,8 +219,17 @@ public class SalaryServiceImpl implements SalaryService {
                 .map(Position::getBaseSalary)
                 .orElse(BigDecimal.ZERO);
 
-        BigDecimal dailySalary = divide(baseSalary, STANDARD_WORK_DAYS);
-        BigDecimal hourlySalary = divide(dailySalary, STANDARD_WORK_HOURS_PER_DAY);
+        BigDecimal standardWorkDays = new BigDecimal(getConfig("standard_work_days", "21.75"));
+        BigDecimal standardWorkHoursPerDay = new BigDecimal(getConfig("standard_work_hours_per_day", "8"));
+        BigDecimal fullAttendanceBonusAmount = new BigDecimal(getConfig("full_attendance_bonus", "300"));
+        BigDecimal attendancePenaltyPerEvent = new BigDecimal(getConfig("attendance_penalty_per_event", "50"));
+
+        BigDecimal weekdayOvertimeRate = new BigDecimal(getConfig("overtime_rate_weekday", "1.5"));
+        BigDecimal weekendOvertimeRate = new BigDecimal(getConfig("overtime_rate_weekend", "2.0"));
+        BigDecimal holidayOvertimeRate = new BigDecimal(getConfig("overtime_rate_holiday", "3.0"));
+
+        BigDecimal dailySalary = divide(baseSalary, standardWorkDays);
+        BigDecimal hourlySalary = divide(dailySalary, standardWorkHoursPerDay);
         LocalDate periodStart = yearMonth.atDay(1);
         LocalDate periodEnd = yearMonth.atEndOfMonth();
 
@@ -247,24 +255,37 @@ public class SalaryServiceImpl implements SalaryService {
                 .filter(v -> v != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal approvedOvertimeHours = overtimeRecordRepository
-                .findByEmpIdAndApprovalStatusAndOtDateBetween(employee.getEmpId(), "APPROVED", periodStart, periodEnd)
-                .stream()
+        List<OvertimeRecord> overtimeRecords = overtimeRecordRepository
+                .findByEmpIdAndApprovalStatusAndOtDateBetween(employee.getEmpId(), "APPROVED", periodStart, periodEnd);
+
+        BigDecimal approvedOvertimeHours = overtimeRecords.stream()
                 .map(OvertimeRecord::getOtHours)
                 .filter(v -> v != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal overtimePay = hourlySalary.multiply(approvedOvertimeHours).multiply(OVERTIME_RATE);
+        BigDecimal overtimePay = BigDecimal.ZERO;
+        for (OvertimeRecord record : overtimeRecords) {
+            if (record.getOtHours() == null) continue;
+            BigDecimal rate = weekdayOvertimeRate;
+            String otType = record.getOtType();
+            if ("WEEKEND".equals(otType)) {
+                rate = weekendOvertimeRate;
+            } else if ("HOLIDAY".equals(otType)) {
+                rate = holidayOvertimeRate;
+            }
+            overtimePay = overtimePay.add(hourlySalary.multiply(record.getOtHours()).multiply(rate));
+        }
+
         BigDecimal leaveDeduction = dailySalary.multiply(approvedLeaveDays);
         BigDecimal absenceDeduction = dailySalary.multiply(BigDecimal.valueOf(absenceCount));
-        BigDecimal attendanceEventDeduction = ATTENDANCE_PENALTY_PER_EVENT
+        BigDecimal attendanceEventDeduction = attendancePenaltyPerEvent
                 .multiply(BigDecimal.valueOf(lateCount + earlyLeaveCount));
         BigDecimal attendanceDeduction = absenceDeduction.add(attendanceEventDeduction);
         boolean fullAttendance = absenceCount == 0
                 && lateCount == 0
                 && earlyLeaveCount == 0
                 && approvedLeaveDays.compareTo(BigDecimal.ZERO) == 0;
-        BigDecimal fullAttendanceBonus = fullAttendance ? FULL_ATTENDANCE_BONUS : BigDecimal.ZERO;
+        BigDecimal fullAttendanceBonus = fullAttendance ? fullAttendanceBonusAmount : BigDecimal.ZERO;
 
         BigDecimal extraBonus = bonusRepository.findByEmpIdAndPayPeriod(employee.getEmpId(), payPeriod).stream()
                 .map(Bonus::getPreTaxAmt)
@@ -281,9 +302,16 @@ public class SalaryServiceImpl implements SalaryService {
                 .add(overtimePay)
                 .add(extraBonus)
                 .setScale(2, RoundingMode.HALF_UP);
+
+        InsuranceCalculator.InsuranceBreakdown insurance = insuranceCalculator.calculate(baseSalary);
+        BigDecimal insuranceTotal = insurance.getTotal();
+        BigDecimal tax = taxCalculator.calculateSimple(grossTotal, insuranceTotal);
+
         BigDecimal deductTotal = leaveDeduction
                 .add(attendanceDeduction)
                 .add(extraDeduction)
+                .add(tax)
+                .add(insuranceTotal)
                 .setScale(2, RoundingMode.HALF_UP);
         BigDecimal netPay = grossTotal.subtract(deductTotal).max(BigDecimal.ZERO)
                 .setScale(2, RoundingMode.HALF_UP);
@@ -301,6 +329,8 @@ public class SalaryServiceImpl implements SalaryService {
                 .extraDeduction(extraDeduction.setScale(2, RoundingMode.HALF_UP))
                 .attendanceDeduction(attendanceDeduction.setScale(2, RoundingMode.HALF_UP))
                 .leaveDeduction(leaveDeduction.setScale(2, RoundingMode.HALF_UP))
+                .taxDeduction(tax.setScale(2, RoundingMode.HALF_UP))
+                .insuranceDeduction(insuranceTotal.setScale(2, RoundingMode.HALF_UP))
                 .grossTotal(grossTotal)
                 .deductTotal(deductTotal)
                 .netPay(netPay)
@@ -348,6 +378,18 @@ public class SalaryServiceImpl implements SalaryService {
         return saved;
     }
 
+    @Override
+    @Transactional
+    public List<Salary> batchApprove(List<Integer> salaryIds) {
+        return salaryIds.stream().map(this::approve).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public List<Salary> batchPay(List<Integer> salaryIds) {
+        return salaryIds.stream().map(this::pay).collect(Collectors.toList());
+    }
+
     private void applyPreview(Salary salary, SalaryCalculationPreview preview) {
         salary.setBaseSnap(preview.getBaseSalary());
         salary.setPerformanceBonus(preview.getPerformanceBonus());
@@ -357,8 +399,8 @@ public class SalaryServiceImpl implements SalaryService {
         salary.setLeaveDeduction(preview.getLeaveDeduction());
         salary.setAttendanceDeduction(preview.getAttendanceDeduction());
         salary.setExtraDeduction(preview.getExtraDeduction());
-        salary.setTaxDeduction(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
-        salary.setInsuranceDeduction(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        salary.setTaxDeduction(preview.getTaxDeduction());
+        salary.setInsuranceDeduction(preview.getInsuranceDeduction());
         salary.setGrossTotal(preview.getGrossTotal());
         salary.setDeductTotal(preview.getDeductTotal());
         salary.setNetPay(preview.getNetPay());
@@ -366,6 +408,12 @@ public class SalaryServiceImpl implements SalaryService {
         salary.setGeneratedAt(LocalDateTime.now());
         salary.setApprovedAt(null);
         salary.setPaidAt(null);
+    }
+
+    private String getConfig(String key, String defaultValue) {
+        return sysConfigRepository.findByConfigKey(key)
+                .map(config -> config.getConfigValue())
+                .orElse(defaultValue);
     }
 
     private boolean isLate(Attendance attendance) {

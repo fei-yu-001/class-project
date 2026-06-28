@@ -15,6 +15,7 @@ public class RegisterRequest {
     @Size(min = 6, max = 100, message = "密码长度6-100")
     private String password;
 
+    @Size(max = 50, message = "昵称长度不能超过50")
     private String nickname;
 
     private Integer empId;

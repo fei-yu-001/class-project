@@ -35,3 +35,11 @@ export const approveSalary = (id: number) => {
 export const paySalary = (id: number) => {
   return request.post(`/salaries/${id}/pay`)
 }
+
+export const batchApproveSalaries = (salaryIds: number[]) => {
+  return request.post('/salaries/batch-approve', { salaryIds })
+}
+
+export const batchPaySalaries = (salaryIds: number[]) => {
+  return request.post('/salaries/batch-pay', { salaryIds })
+}

@@ -7,14 +7,14 @@ import ToastMessage from '@/components/ToastMessage.vue'
 import {
   searchSalaries, createSalary, updateSalary, deleteSalary,
   previewSalaries, generateSalaries, approveSalary, paySalary,
-  getSalariesByEmployee
+  getSalariesByEmployee, batchApproveSalaries, batchPaySalaries
 } from '@/api/salary'
 import { searchEmployees } from '@/api/employee'
 import { usePermission } from '@/composables/usePermission'
 import {
   Search, Plus, Pencil, Trash2, Calendar, Calculator, RefreshCw,
   CheckCircle, WalletCards, FileSpreadsheet, FileText, History,
-  X, ChevronDown
+  X, ChevronDown, Zap
 } from 'lucide-vue-next'
 import * as XLSX from 'xlsx'
 
@@ -292,6 +292,49 @@ const handleDelete = async (row: any) => {
   })
 }
 
+const handleBatchApprove = () => {
+  const ids = [...selectedRowIds.value]
+  if (ids.length === 0) { showToast('请先选择要审核的记录', 'error'); return }
+  openConfirm({
+    title: '批量审核',
+    message: `确认审核选中的 ${ids.length} 条工资记录？`,
+    confirmText: '批量审核',
+    action: async () => {
+      try {
+        await batchApproveSalaries(ids)
+        selectedRowIds.value.clear()
+        showSelectedOnly.value = false
+        fetchData()
+        showToast('批量审核成功', 'success')
+      } catch (e: any) {
+        showToast(e.message || '批量审核失败', 'error')
+      }
+    }
+  })
+}
+
+const handleBatchPay = () => {
+  const ids = [...selectedRowIds.value]
+  if (ids.length === 0) { showToast('请先选择要发放的记录', 'error'); return }
+  openConfirm({
+    title: '批量发放',
+    message: `确认发放选中的 ${ids.length} 条工资记录？`,
+    confirmText: '批量发放',
+    danger: false,
+    action: async () => {
+      try {
+        await batchPaySalaries(ids)
+        selectedRowIds.value.clear()
+        showSelectedOnly.value = false
+        fetchData()
+        showToast('批量发放成功', 'success')
+      } catch (e: any) {
+        showToast(e.message || '批量发放失败', 'error')
+      }
+    }
+  })
+}
+
 // 选中框逻辑
 const displaySalaries = computed(() => {
   if (showSelectedOnly.value) {
@@ -360,6 +403,8 @@ const baseColumns = [
   { key: 'leaveDeduction', title: '请假扣款' },
   { key: 'attendanceDeduction', title: '考勤扣款' },
   { key: 'extraDeduction', title: '其他罚款' },
+  { key: 'taxDeduction', title: '个税扣除' },
+  { key: 'insuranceDeduction', title: '社保扣除' },
   { key: 'grossTotal', title: '应发总额' },
   { key: 'deductTotal', title: '扣除总额' },
   { key: 'netPay', title: '实发工资' },
@@ -378,6 +423,8 @@ const exportExcel = () => {
     请假扣款: Number(r.leaveDeduction || 0),
     考勤扣款: Number(r.attendanceDeduction || 0),
     其他罚款: Number(r.extraDeduction || 0),
+    个税扣除: Number(r.taxDeduction || 0),
+    社保扣除: Number(r.insuranceDeduction || 0),
     应发总额: Number(r.grossTotal || 0),
     扣除总额: Number(r.deductTotal || 0),
     实发工资: Number(r.netPay || 0),
@@ -501,6 +548,15 @@ onMounted(() => {
           <Calculator class="w-4 h-4" />
           {{ previewLoading ? '计算中...' : '计算预览' }}
         </button>
+        <button
+          v-if="canEdit()"
+          @click="handleGenerate"
+          :disabled="generateLoading || !previewRows.length"
+          class="glass-btn px-4 py-2 rounded-lg text-sm flex items-center gap-2 disabled:opacity-50"
+        >
+          <Zap class="w-4 h-4" />
+          {{ generateLoading ? '生成中...' : '生成工资' }}
+        </button>
         <div class="relative">
           <button
             @click="showPrintMenu = !showPrintMenu"
@@ -543,6 +599,8 @@ onMounted(() => {
               <th>请假扣款</th>
               <th>考勤扣款</th>
               <th>其他罚款</th>
+              <th>个税</th>
+              <th>社保</th>
               <th>实发</th>
               <th>状态</th>
             </tr>
@@ -561,6 +619,8 @@ onMounted(() => {
                 / -¥{{ money(row.attendanceDeduction) }}
               </td>
               <td class="text-red-700">-¥{{ money(row.extraDeduction) }}</td>
+              <td class="text-orange-700">-¥{{ money(row.taxDeduction) }}</td>
+              <td class="text-blue-700">-¥{{ money(row.insuranceDeduction) }}</td>
               <td class="font-bold text-primary">¥{{ money(row.netPay) }}</td>
               <td>
                 <span
@@ -605,6 +665,20 @@ onMounted(() => {
         <X class="w-3.5 h-3.5" /> 清除选中
       </button>
       <button
+        v-if="selectedRowIds.size > 0 && canEdit()"
+        @click="handleBatchApprove"
+        class="glass-btn px-3 py-2 rounded-lg text-sm flex items-center gap-1"
+      >
+        <CheckCircle class="w-3.5 h-3.5" /> 批量审核 ({{ selectedRowIds.size }})
+      </button>
+      <button
+        v-if="selectedRowIds.size > 0 && canEdit()"
+        @click="handleBatchPay"
+        class="glass-btn px-3 py-2 rounded-lg text-sm flex items-center gap-1"
+      >
+        <WalletCards class="w-3.5 h-3.5" /> 批量发放 ({{ selectedRowIds.size }})
+      </button>
+      <button
         v-if="historyEmpId"
         @click="openHistory"
         class="glass-btn-secondary px-4 py-2 rounded-lg text-sm flex items-center gap-2"
@@ -642,6 +716,8 @@ onMounted(() => {
               <th class="whitespace-nowrap text-xs">请假扣款</th>
               <th class="whitespace-nowrap text-xs">考勤扣款</th>
               <th class="whitespace-nowrap text-xs">其他罚款</th>
+              <th class="whitespace-nowrap text-xs">个税扣除</th>
+              <th class="whitespace-nowrap text-xs">社保扣除</th>
               <th class="whitespace-nowrap text-xs">应发总额</th>
               <th class="whitespace-nowrap text-xs">扣除总额</th>
               <th class="whitespace-nowrap text-xs">实发工资</th>
@@ -669,6 +745,8 @@ onMounted(() => {
               <td class="whitespace-nowrap">¥{{ money(row.leaveDeduction) }}</td>
               <td class="whitespace-nowrap">¥{{ money(row.attendanceDeduction) }}</td>
               <td class="whitespace-nowrap text-red-700">¥{{ money(row.extraDeduction) }}</td>
+              <td class="whitespace-nowrap text-orange-700">¥{{ money(row.taxDeduction) }}</td>
+              <td class="whitespace-nowrap text-blue-700">¥{{ money(row.insuranceDeduction) }}</td>
               <td class="text-success whitespace-nowrap">+¥{{ money(row.grossTotal) }}</td>
               <td class="text-danger whitespace-nowrap">-¥{{ money(row.deductTotal) }}</td>
               <td class="font-bold text-primary whitespace-nowrap">¥{{ money(row.netPay) }}</td>
@@ -700,7 +778,7 @@ onMounted(() => {
               </td>
             </tr>
             <tr v-if="displaySalaries.length === 0">
-              <td colspan="16" class="text-center py-12 text-text-muted">暂无数据</td>
+              <td colspan="18" class="text-center py-12 text-text-muted">暂无数据</td>
             </tr>
           </tbody>
         </table>

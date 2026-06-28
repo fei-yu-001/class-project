@@ -1,0 +1,1 @@
+{"success":true,"data":{"origin":"http://localhost:3002/#/login","refs":{"e1":{"name":"工资管理系统","role":"heading"},"e2":{"name":"登录","role":"button"},"e3":{"name":"注册","role":"button"}},"snapshot":"- heading \"工资管理系统\" [level=1, ref=e1]\n- button \"登录\" [ref=e2]\n- button \"注册\" [ref=e3]"},"error":null}

@@ -1,13 +1,19 @@
 package com.salary.service.impl;
 
 import com.salary.dto.DashboardStats;
+import com.salary.entity.Employee;
+import com.salary.entity.PerformanceReview;
+import com.salary.entity.Salary;
 import com.salary.repository.*;
 import com.salary.service.DashboardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
@@ -24,10 +30,24 @@ public class DashboardServiceImpl implements DashboardService {
     private final SalDetailViewRepository salDetailViewRepo;
     private final EmpPayInfoViewRepository empPayInfoViewRepo;
     private final EmpPerfAttViewRepository empPerfAttViewRepo;
+    private final UserRepository userRepository;
+    private final PerformanceReviewRepository performanceReviewRepository;
 
     @Override
-    @Cacheable(value = "dashboardStats", key = "'summary'")
     public DashboardStats getStats() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isAdmin = auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (isAdmin) {
+            return getAdminStats();
+        } else {
+            return getUserStats(auth);
+        }
+    }
+
+    @Cacheable(value = "dashboardStats", key = "'admin'")
+    private DashboardStats getAdminStats() {
         long totalDepts = departmentRepository.count();
         long totalPos = positionRepository.count();
         BigDecimal totalNet = salaryRepository.sumNetPay();
@@ -51,6 +71,76 @@ public class DashboardServiceImpl implements DashboardService {
                 .monthlyNetPayChart(monthlyNetPayFromView())
                 .payTypeChart(payTypeFromView())
                 .gradeChart(gradeFromView())
+                .build();
+    }
+
+    private DashboardStats getUserStats(Authentication auth) {
+        Integer userId = (auth != null && auth.getPrincipal() instanceof Integer id) ? id : null;
+
+        String myName = "";
+        BigDecimal myBaseSalary = BigDecimal.ZERO;
+        BigDecimal myLatestNetPay = BigDecimal.ZERO;
+        String myPerformanceGrade = null;
+        BigDecimal myTotalBonus = BigDecimal.ZERO;
+        BigDecimal myTotalDeduction = BigDecimal.ZERO;
+
+        if (userId != null) {
+            var userOpt = userRepository.findById(userId);
+            if (userOpt.isPresent() && userOpt.get().getEmpId() != null) {
+                Integer empId = userOpt.get().getEmpId();
+                var empOpt = employeeRepository.findById(empId);
+                if (empOpt.isPresent()) {
+                    Employee emp = empOpt.get();
+                    myName = emp.getEmpName();
+
+                    var posOpt = positionRepository.findById(emp.getPosId());
+                    if (posOpt.isPresent()) {
+                        myBaseSalary = posOpt.get().getBaseSalary();
+                    }
+
+                    var salaries = salaryRepository.findByEmpId(empId);
+                    if (!salaries.isEmpty()) {
+                        Salary latest = salaries.get(salaries.size() - 1);
+                        myLatestNetPay = latest.getNetPay();
+                        myTotalBonus = latest.getPerformanceBonus()
+                                .add(latest.getFullAttendanceBonus())
+                                .add(latest.getOvertimePay())
+                                .add(latest.getExtraBonus());
+                        myTotalDeduction = latest.getDeductTotal();
+                    }
+
+                    var reviews = performanceReviewRepository.findByEmpId(empId);
+                    if (!reviews.isEmpty()) {
+                        myPerformanceGrade = reviews.get(reviews.size() - 1).getGrade();
+                    }
+                }
+            }
+        }
+
+        return DashboardStats.builder()
+                .totalEmployees(0)
+                .activeEmployees(0)
+                .totalDepartments(0)
+                .totalPositions(0)
+                .pendingSalaries(0)
+                .paidSalaries(0)
+                .currentPeriodGrossSalary(BigDecimal.ZERO)
+                .currentPeriodNetSalary(BigDecimal.ZERO)
+                .totalNetSalary(BigDecimal.ZERO)
+                .bankCardCount(0)
+                .alipayCount(0)
+                .departmentCount(BigDecimal.ZERO)
+                .positionCount(BigDecimal.ZERO)
+                .totalPayment(BigDecimal.ZERO)
+                .monthlyNetPayChart(List.of())
+                .payTypeChart(List.of())
+                .gradeChart(List.of())
+                .myName(myName)
+                .myBaseSalary(myBaseSalary.setScale(2, RoundingMode.HALF_UP))
+                .myLatestNetPay(myLatestNetPay.setScale(2, RoundingMode.HALF_UP))
+                .myPerformanceGrade(myPerformanceGrade)
+                .myTotalBonus(myTotalBonus.setScale(2, RoundingMode.HALF_UP))
+                .myTotalDeduction(myTotalDeduction.setScale(2, RoundingMode.HALF_UP))
                 .build();
     }
 

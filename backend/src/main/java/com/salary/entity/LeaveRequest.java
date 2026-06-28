@@ -43,6 +43,6 @@ public class LeaveRequest {
         if (startDate == null) startDate = LocalDate.now();
         if (endDate == null) endDate = startDate;
         if (leaveDays == null) leaveDays = BigDecimal.ONE;
-        if (approvalStatus == null || approvalStatus.isBlank()) approvalStatus = "APPROVED";
+        if (approvalStatus == null || approvalStatus.isBlank()) approvalStatus = "PENDING";
     }
 }

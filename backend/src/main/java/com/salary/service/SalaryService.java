@@ -30,4 +30,8 @@ public interface SalaryService {
     Salary approve(Integer salaryId);
 
     Salary pay(Integer salaryId);
+
+    List<Salary> batchApprove(List<Integer> salaryIds);
+
+    List<Salary> batchPay(List<Integer> salaryIds);
 }

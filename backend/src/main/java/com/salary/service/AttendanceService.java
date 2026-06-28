@@ -23,4 +23,9 @@ public interface AttendanceService {
     OvertimeRecord createOvertimeRecord(OvertimeRecord record);
     OvertimeRecord updateOvertimeRecord(Integer id, OvertimeRecord record);
     void deleteOvertimeRecord(Integer id);
+
+    LeaveRequest approveLeave(Integer leaveId);
+    LeaveRequest rejectLeave(Integer leaveId);
+    OvertimeRecord approveOvertime(Integer otId);
+    OvertimeRecord rejectOvertime(Integer otId);
 }

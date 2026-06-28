@@ -3,12 +3,14 @@ import { ref, computed, onMounted, watch } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import GlassModal from '@/components/GlassModal.vue'
 import ToastMessage from '@/components/ToastMessage.vue'
-import { Plus, Pencil, Trash2, Search } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, Search, CheckCircle, XCircle } from 'lucide-vue-next'
 import {
   getAllOvertime,
   createOvertime,
   updateOvertime,
-  deleteOvertime
+  deleteOvertime,
+  approveOvertime,
+  rejectOvertime
 } from '@/api/attendance'
 import { searchEmployees } from '@/api/employee'
 import { usePermission } from '@/composables/usePermission'
@@ -30,8 +32,19 @@ const defaultForm = () => ({
   empId: null as number | null,
   otHours: 0,
   otDate: new Date().toISOString().slice(0, 10),
-  approvalStatus: 'APPROVED'
+  otType: 'WEEKDAY',
+  approvalStatus: 'PENDING'
 })
+
+const otTypeOptions = [
+  { value: 'WEEKDAY', label: '工作日' },
+  { value: 'WEEKEND', label: '休息日' },
+  { value: 'HOLIDAY', label: '法定节假日' }
+]
+
+const otTypeLabel = (type?: string) => {
+  return otTypeOptions.find(o => o.value === type)?.label || '工作日'
+}
 
 const approvalStatusOptions = [
   { value: 'PENDING', label: '待审批' },
@@ -41,6 +54,28 @@ const approvalStatusOptions = [
 
 const approvalStatusLabel = (status?: string) => {
   return approvalStatusOptions.find(o => o.value === status)?.label || status || '-'
+}
+
+const handleApprove = async (item: any) => {
+  if (!confirm('确认通过该加班记录？')) return
+  try {
+    await approveOvertime(item.otId)
+    fetchData()
+    showToast('加班已通过', 'success')
+  } catch (e: any) {
+    showToast(e.message || '操作失败', 'error')
+  }
+}
+
+const handleReject = async (item: any) => {
+  if (!confirm('确认驳回该加班记录？')) return
+  try {
+    await rejectOvertime(item.otId)
+    fetchData()
+    showToast('加班已驳回', 'success')
+  } catch (e: any) {
+    showToast(e.message || '操作失败', 'error')
+  }
 }
 
 const form = ref(defaultForm())
@@ -104,7 +139,8 @@ const openEdit = (item: any) => {
     empId: item.empId,
     otHours: item.otHours,
     otDate: item.otDate || new Date().toISOString().slice(0, 10),
-    approvalStatus: item.approvalStatus || 'APPROVED'
+    otType: item.otType || 'WEEKDAY',
+    approvalStatus: item.approvalStatus || 'PENDING'
   }
   showModal.value = true
 }
@@ -192,6 +228,7 @@ onMounted(() => {
               <tr class="border-b border-black/5">
                 <th class="px-4 py-3 text-left text-sm font-medium text-gray-600">员工</th>
                 <th class="px-4 py-3 text-left text-sm font-medium text-gray-600">日期</th>
+                <th class="px-4 py-3 text-left text-sm font-medium text-gray-600">类型</th>
                 <th class="px-4 py-3 text-left text-sm font-medium text-gray-600">时长</th>
                 <th class="px-4 py-3 text-left text-sm font-medium text-gray-600">审批状态</th>
                 <th class="px-4 py-3 text-sm font-medium text-gray-600" style="text-align: center !important; width: 120px;">操作</th>
@@ -199,18 +236,25 @@ onMounted(() => {
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="5" class="px-4 py-8 text-center text-gray-500">加载中...</td>
+                <td colspan="6" class="px-4 py-8 text-center text-gray-500">加载中...</td>
               </tr>
               <tr v-else-if="pagedItems.length === 0">
-                <td colspan="5" class="px-4 py-8 text-center text-gray-500">暂无数据</td>
+                <td colspan="6" class="px-4 py-8 text-center text-gray-500">暂无数据</td>
               </tr>
               <tr v-for="item in pagedItems" :key="item.otId" class="border-b border-black/5 hover:bg-white/20 transition-colors">
                 <td class="px-4 py-3 text-sm text-gray-700">{{ getEmpName(item.empId) }}</td>
                 <td class="px-4 py-3 text-sm text-gray-700">{{ item.otDate }}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">{{ otTypeLabel(item.otType) }}</td>
                 <td class="px-4 py-3 text-sm text-gray-700">{{ item.otHours }} 小时</td>
                 <td class="px-4 py-3 text-sm text-gray-700">{{ approvalStatusLabel(item.approvalStatus) }}</td>
                 <td class="px-4 py-3 text-center">
                   <div class="inline-flex items-center justify-center gap-1">
+                    <button v-if="canEdit() && item.approvalStatus === 'PENDING'" @click="handleApprove(item)" class="flex items-center justify-center w-7 h-7 rounded-lg text-success hover:bg-success/10 transition-colors" title="通过">
+                      <CheckCircle class="w-3.5 h-3.5" />
+                    </button>
+                    <button v-if="canEdit() && item.approvalStatus === 'PENDING'" @click="handleReject(item)" class="flex items-center justify-center w-7 h-7 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors" title="驳回">
+                      <XCircle class="w-3.5 h-3.5" />
+                    </button>
                     <button v-if="canEdit()" @click="openEdit(item)" class="flex items-center justify-center w-7 h-7 rounded-lg text-primary hover:bg-primary/10 transition-colors" title="编辑">
                       <Pencil class="w-3.5 h-3.5" />
                     </button>
@@ -247,6 +291,12 @@ onMounted(() => {
         <div>
           <label class="text-sm text-text-muted mb-1 block">加班日期</label>
           <input v-model="form.otDate" type="date" class="glass-input w-full px-4 py-2.5 rounded-xl text-sm" />
+        </div>
+        <div>
+          <label class="text-sm text-text-muted mb-1 block">加班类型</label>
+          <select v-model="form.otType" class="glass-input w-full px-4 py-2.5 rounded-xl text-sm">
+            <option v-for="opt in otTypeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+          </select>
         </div>
         <div>
           <label class="text-sm text-text-muted mb-1 block">审批状态</label>

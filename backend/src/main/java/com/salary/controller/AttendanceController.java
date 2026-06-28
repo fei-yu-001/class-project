@@ -69,4 +69,28 @@ public class AttendanceController {
     @DeleteMapping("/overtime/{id}")
     @RequireRole("ADMIN")
     public Result<Void> deleteOvertime(@PathVariable Integer id) { attendanceService.deleteOvertimeRecord(id); return Result.success(); }
+
+    @PutMapping("/leaves/{id}/approve")
+    @RequireRole("ADMIN")
+    public Result<LeaveRequest> approveLeave(@PathVariable Integer id) {
+        return Result.success("请假已通过", attendanceService.approveLeave(id));
+    }
+
+    @PutMapping("/leaves/{id}/reject")
+    @RequireRole("ADMIN")
+    public Result<LeaveRequest> rejectLeave(@PathVariable Integer id) {
+        return Result.success("请假已驳回", attendanceService.rejectLeave(id));
+    }
+
+    @PutMapping("/overtime/{id}/approve")
+    @RequireRole("ADMIN")
+    public Result<OvertimeRecord> approveOvertime(@PathVariable Integer id) {
+        return Result.success("加班已通过", attendanceService.approveOvertime(id));
+    }
+
+    @PutMapping("/overtime/{id}/reject")
+    @RequireRole("ADMIN")
+    public Result<OvertimeRecord> rejectOvertime(@PathVariable Integer id) {
+        return Result.success("加班已驳回", attendanceService.rejectOvertime(id));
+    }
 }

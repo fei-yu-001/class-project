@@ -22,6 +22,8 @@ public class SalaryCalculationPreview {
     private BigDecimal overtimePay;
     private BigDecimal extraBonus;
     private BigDecimal extraDeduction;
+    private BigDecimal taxDeduction;
+    private BigDecimal insuranceDeduction;
     private BigDecimal attendanceDeduction;
     private BigDecimal leaveDeduction;
     private BigDecimal grossTotal;

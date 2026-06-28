@@ -12,4 +12,6 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Integer>
     List<Attendance> findByEmpId(Integer empId);
 
     List<Attendance> findByEmpIdAndAttDateBetween(Integer empId, LocalDate startDate, LocalDate endDate);
+
+    boolean existsByEmpIdAndAttDate(Integer empId, LocalDate attDate);
 }

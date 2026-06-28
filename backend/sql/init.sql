@@ -6,6 +6,7 @@ DROP VIEW IF EXISTS v_emp_full, v_sal_detail, v_emp_perf_att, v_emp_project, v_e
 DROP TABLE IF EXISTS sal_deduct_rel, sal_bonus_rel, deduction, bonus, salary_record;
 DROP TABLE IF EXISTS pos_change, overtime, leave_req, attendance, performance;
 DROP TABLE IF EXISTS project_member, project, payment_method, users, employee, `position`, department;
+DROP TABLE IF EXISTS sys_config, audit_log, leave_balance;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- 1. users
@@ -111,6 +112,7 @@ CREATE TABLE attendance(
        early_leave_minutes INT NOT NULL DEFAULT 0 COMMENT 'early_leave_minutes',
        absent BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'absent',
        PRIMARY KEY(att_id),
+       UNIQUE KEY uk_att_emp_date(emp_id, att_date),
        FOREIGN KEY(emp_id) REFERENCES employee(emp_id) ON DELETE CASCADE ON UPDATE CASCADE
 )ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='attendance';
 
@@ -122,7 +124,7 @@ CREATE TABLE leave_req(
       start_date DATE NOT NULL COMMENT 'start_date',
       end_date DATE NOT NULL COMMENT 'end_date',
       leave_days DECIMAL(5,2) NOT NULL DEFAULT 1.00 COMMENT 'leave_days',
-      approval_status VARCHAR(20) NOT NULL DEFAULT 'APPROVED' COMMENT 'approval_status',
+      approval_status VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT 'approval_status',
       PRIMARY KEY(leave_id),
       FOREIGN KEY(emp_id) REFERENCES employee(emp_id) ON DELETE CASCADE ON UPDATE CASCADE
 )ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='leave_req';
@@ -133,7 +135,8 @@ CREATE TABLE overtime(
      emp_id INT NOT NULL COMMENT 'emp_id',
      ot_hours DECIMAL(4,1) NOT NULL COMMENT 'ot_hours',
      ot_date DATE NOT NULL COMMENT 'ot_date',
-     approval_status VARCHAR(20) NOT NULL DEFAULT 'APPROVED' COMMENT 'approval_status',
+     ot_type VARCHAR(20) NOT NULL DEFAULT 'WEEKDAY' COMMENT 'ot_type',
+     approval_status VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT 'approval_status',
      PRIMARY KEY(ot_id),
      FOREIGN KEY(emp_id) REFERENCES employee(emp_id) ON DELETE CASCADE ON UPDATE CASCADE
 )ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='overtime';
@@ -353,10 +356,10 @@ INSERT INTO leave_req (emp_id, leave_type, start_date, end_date, leave_days, app
 (1003, '病假', '2026-06-10', '2026-06-10', 1.00, 'APPROVED'),
 (1005, '事假', '2026-06-12', '2026-06-13', 2.00, 'APPROVED');
 
-INSERT INTO overtime (emp_id, ot_hours, ot_date, approval_status) VALUES
-(1001, 3.0, '2026-06-08', 'APPROVED'),
-(1002, 2.5, '2026-06-09', 'APPROVED'),
-(1005, 4.0, '2026-06-11', 'PENDING');
+INSERT INTO overtime (emp_id, ot_hours, ot_date, ot_type, approval_status) VALUES
+(1001, 3.0, '2026-06-08', 'WEEKDAY', 'APPROVED'),
+(1002, 2.5, '2026-06-09', 'WEEKEND', 'APPROVED'),
+(1005, 4.0, '2026-06-11', 'WEEKDAY', 'PENDING');
 
 INSERT INTO salary_record (
   emp_id, base_snap, pay_period, gross_total, deduct_total, net_pay,
@@ -383,3 +386,64 @@ INSERT INTO sal_deduct_rel (salary_id, deduct_id) VALUES
 (1, 1),
 (1, 2),
 (2, 2);
+
+-- ==============================================
+-- 新增表: sys_config, audit_log, leave_balance
+-- ==============================================
+
+-- 系统配置表
+CREATE TABLE sys_config(
+    config_key VARCHAR(50) NOT NULL COMMENT '配置键',
+    config_value VARCHAR(100) NOT NULL COMMENT '配置值',
+    description VARCHAR(200) DEFAULT NULL COMMENT '配置说明',
+    PRIMARY KEY(config_key)
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统配置表';
+
+INSERT INTO sys_config (config_key, config_value, description) VALUES
+('standard_work_days', '21.75', '月标准工作日（用于计算日薪）'),
+('standard_work_hours_per_day', '8', '日标准工时（用于计算时薪）'),
+('overtime_rate_weekday', '1.5', '工作日加班倍率'),
+('overtime_rate_weekend', '2.0', '休息日加班倍率'),
+('overtime_rate_holiday', '3.0', '法定节假日加班倍率'),
+('full_attendance_bonus', '300', '全勤奖金额（元）'),
+('attendance_penalty_per_event', '50', '迟到/早退每次扣款（元）'),
+('insurance_pension_rate', '0.08', '养老保险个人缴纳比例'),
+('insurance_medical_rate', '0.02', '医疗保险个人缴纳比例'),
+('insurance_unemployment_rate', '0.005', '失业保险个人缴纳比例'),
+('insurance_housing_rate', '0.12', '住房公积金个人缴纳比例'),
+('tax_threshold', '5000', '个税起征点（元/月）');
+
+-- 审计日志表
+CREATE TABLE audit_log(
+    log_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '日志ID',
+    user_id INT DEFAULT NULL COMMENT '操作用户ID',
+    username VARCHAR(50) DEFAULT NULL COMMENT '操作用户名',
+    action VARCHAR(50) NOT NULL COMMENT '操作类型',
+    entity_type VARCHAR(50) NOT NULL COMMENT '实体类型',
+    entity_id INT DEFAULT NULL COMMENT '实体ID',
+    detail TEXT DEFAULT NULL COMMENT '操作详情',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY(log_id),
+    INDEX idx_audit_created(created_at)
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审计日志表';
+
+-- 假期余额表
+CREATE TABLE leave_balance(
+    balance_id INT NOT NULL AUTO_INCREMENT COMMENT '余额ID',
+    emp_id INT NOT NULL COMMENT '员工ID',
+    leave_type VARCHAR(20) NOT NULL COMMENT '假期类型',
+    year INT NOT NULL COMMENT '年份',
+    total_days DECIMAL(5,2) NOT NULL DEFAULT 0 COMMENT '总天数',
+    used_days DECIMAL(5,2) NOT NULL DEFAULT 0 COMMENT '已用天数',
+    PRIMARY KEY(balance_id),
+    UNIQUE KEY uk_balance_emp_type_year(emp_id, leave_type, year),
+    FOREIGN KEY(emp_id) REFERENCES employee(emp_id) ON DELETE CASCADE ON UPDATE CASCADE
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='假期余额表';
+
+-- 为每个在职员工初始化年假余额
+INSERT INTO leave_balance (emp_id, leave_type, year, total_days, used_days) VALUES
+(1001, '年假', 2026, 15.00, 0.00),
+(1002, '年假', 2026, 15.00, 0.00),
+(1003, '年假', 2026, 15.00, 1.00),
+(1004, '年假', 2026, 15.00, 0.00),
+(1005, '年假', 2026, 15.00, 2.00);

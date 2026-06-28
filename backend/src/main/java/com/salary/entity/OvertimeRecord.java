@@ -28,6 +28,9 @@ public class OvertimeRecord {
     @Column(name = "ot_date", nullable = false)
     private LocalDate otDate;
 
+    @Column(name = "ot_type", nullable = false, length = 20)
+    private String otType;
+
     @Column(name = "approval_status", nullable = false, length = 20)
     private String approvalStatus;
 
@@ -36,6 +39,7 @@ public class OvertimeRecord {
     protected void fillDefaults() {
         if (otHours == null) otHours = BigDecimal.ZERO;
         if (otDate == null) otDate = LocalDate.now();
-        if (approvalStatus == null || approvalStatus.isBlank()) approvalStatus = "APPROVED";
+        if (otType == null || otType.isBlank()) otType = "WEEKDAY";
+        if (approvalStatus == null || approvalStatus.isBlank()) approvalStatus = "PENDING";
     }
 }

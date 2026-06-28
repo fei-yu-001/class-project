@@ -42,4 +42,10 @@ public interface SalaryRepository extends JpaRepository<Salary, Integer> {
     BigDecimal sumNetByPayPeriod(@Param("payPeriod") String payPeriod);
 
     long countByStatus(String status);
+
+    @Query("SELECT COALESCE(SUM(s.grossTotal), 0) FROM Salary s WHERE s.empId = :empId AND s.payPeriod < :payPeriod AND s.status = 'PAID'")
+    BigDecimal sumPaidGrossBefore(@Param("empId") Integer empId, @Param("payPeriod") String payPeriod);
+
+    @Query("SELECT COALESCE(SUM(s.insuranceDeduction), 0) FROM Salary s WHERE s.empId = :empId AND s.payPeriod < :payPeriod AND s.status = 'PAID'")
+    BigDecimal sumPaidInsuranceBefore(@Param("empId") Integer empId, @Param("payPeriod") String payPeriod);
 }

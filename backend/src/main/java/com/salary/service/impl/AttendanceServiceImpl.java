@@ -7,11 +7,14 @@ import com.salary.repository.AttendanceRepository;
 import com.salary.repository.EmployeeRepository;
 import com.salary.repository.LeaveRequestRepository;
 import com.salary.repository.OvertimeRecordRepository;
+import com.salary.repository.LeaveBalanceRepository;
 import com.salary.service.AttendanceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.Year;
 import java.util.List;
 
 @Service
@@ -22,6 +25,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final EmployeeRepository employeeRepository;
     private final LeaveRequestRepository leaveRequestRepository;
     private final OvertimeRecordRepository overtimeRecordRepository;
+    private final LeaveBalanceRepository leaveBalanceRepository;
 
     @Override
     public List<Attendance> getAllAttendance() { return attendanceRepository.findAll(); }
@@ -33,6 +37,11 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Transactional
     public Attendance createAttendance(Attendance record) {
         validateEmployee(record.getEmpId());
+        boolean exists = !attendanceRepository.findByEmpIdAndAttDateBetween(
+                record.getEmpId(), record.getAttDate(), record.getAttDate()).isEmpty();
+        if (exists) {
+            throw new IllegalArgumentException("该员工在 " + record.getAttDate() + " 已有考勤记录");
+        }
         return attendanceRepository.save(record);
     }
 
@@ -116,6 +125,65 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Override
     @Transactional
     public void deleteOvertimeRecord(Integer id) { overtimeRecordRepository.deleteById(id); }
+
+    @Override
+    @Transactional
+    public LeaveRequest approveLeave(Integer leaveId) {
+        LeaveRequest leave = leaveRequestRepository.findById(leaveId)
+                .orElseThrow(() -> new IllegalArgumentException("请假记录不存在"));
+        if (!"PENDING".equals(leave.getApprovalStatus())) {
+            throw new IllegalArgumentException("只有待审批的请假可以审核通过");
+        }
+        leave.setApprovalStatus("APPROVED");
+        // 扣除假期余额
+        leaveBalanceRepository.findByEmpIdAndLeaveTypeAndYear(
+                leave.getEmpId(), leave.getLeaveType(), Year.now().getValue())
+            .ifPresent(balance -> {
+                BigDecimal remaining = balance.getTotalDays().subtract(balance.getUsedDays());
+                if (remaining.compareTo(leave.getLeaveDays()) < 0) {
+                    throw new IllegalArgumentException("假期余额不足，剩余" + remaining + "天");
+                }
+                balance.setUsedDays(balance.getUsedDays().add(leave.getLeaveDays()));
+                leaveBalanceRepository.save(balance);
+            });
+        return leaveRequestRepository.save(leave);
+    }
+
+    @Override
+    @Transactional
+    public LeaveRequest rejectLeave(Integer leaveId) {
+        LeaveRequest leave = leaveRequestRepository.findById(leaveId)
+                .orElseThrow(() -> new IllegalArgumentException("请假记录不存在"));
+        if (!"PENDING".equals(leave.getApprovalStatus())) {
+            throw new IllegalArgumentException("只有待审批的请假可以驳回");
+        }
+        leave.setApprovalStatus("REJECTED");
+        return leaveRequestRepository.save(leave);
+    }
+
+    @Override
+    @Transactional
+    public OvertimeRecord approveOvertime(Integer otId) {
+        OvertimeRecord ot = overtimeRecordRepository.findById(otId)
+                .orElseThrow(() -> new IllegalArgumentException("加班记录不存在"));
+        if (!"PENDING".equals(ot.getApprovalStatus())) {
+            throw new IllegalArgumentException("只有待审批的加班可以审核通过");
+        }
+        ot.setApprovalStatus("APPROVED");
+        return overtimeRecordRepository.save(ot);
+    }
+
+    @Override
+    @Transactional
+    public OvertimeRecord rejectOvertime(Integer otId) {
+        OvertimeRecord ot = overtimeRecordRepository.findById(otId)
+                .orElseThrow(() -> new IllegalArgumentException("加班记录不存在"));
+        if (!"PENDING".equals(ot.getApprovalStatus())) {
+            throw new IllegalArgumentException("只有待审批的加班可以驳回");
+        }
+        ot.setApprovalStatus("REJECTED");
+        return overtimeRecordRepository.save(ot);
+    }
 
     private void validateEmployee(Integer empId) {
         if (empId == null || !employeeRepository.existsById(empId)) {

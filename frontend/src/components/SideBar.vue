@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, DollarSign, Building2,
   Briefcase, CreditCard, ChevronLeft, ChevronRight,
   UserCircle, Settings, ShieldCheck, UserCog, FolderKanban, ClipboardCheck,
-  CalendarCheck, FileText, Clock, ArrowRightLeft
+  CalendarCheck, FileText, Clock, ArrowRightLeft, SlidersHorizontal, ScrollText
 } from 'lucide-vue-next'
 import { ref, computed } from 'vue'
 
@@ -36,6 +36,8 @@ const systemItems = [
   { path: '/settings', label: '设置', icon: Settings, roles: ['USER', 'ADMIN'] },
   { path: '/user-permissions', label: '用户权限管理', icon: ShieldCheck, roles: ['ADMIN'] },
   { path: '/employee-comprehensive', label: '员工综合管理', icon: UserCog, roles: ['ADMIN'] },
+  { path: '/sys-config', label: '系统配置', icon: SlidersHorizontal, roles: ['ADMIN'] },
+  { path: '/audit-logs', label: '操作日志', icon: ScrollText, roles: ['ADMIN'] },
 ]
 
 const currentRole = computed(() => {

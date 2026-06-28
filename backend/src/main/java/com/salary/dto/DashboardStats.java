@@ -33,4 +33,12 @@ public class DashboardStats {
     private List<Map<String, Object>> monthlyNetPayChart;
     private List<Map<String, Object>> payTypeChart;
     private List<Map<String, Object>> gradeChart;
+
+    // 个人数据（普通用户）
+    private String myName;
+    private BigDecimal myBaseSalary;
+    private BigDecimal myLatestNetPay;
+    private String myPerformanceGrade;
+    private BigDecimal myTotalBonus;
+    private BigDecimal myTotalDeduction;
 }
